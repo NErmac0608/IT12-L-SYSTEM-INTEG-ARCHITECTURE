@@ -19,9 +19,21 @@ function Navbar() {
 
         <Link
           to="/"
-          className="text-2xl font-bold tracking-tight"
+          className="brand-lockup"
         >
-          UM-TAP
+          <img
+            src="/umtap_logo.png"
+            alt=""
+            className="brand-mark"
+          />
+          <span className="brand-name" aria-label="UM-TAP">
+            <span className="brand-letter">U</span>
+            <span className="brand-letter">M</span>
+            <span className="brand-letter">-</span>
+            <span className="brand-letter">T</span>
+            <span className="brand-letter">A</span>
+            <span className="brand-letter">P</span>
+          </span>
         </Link>
 
 
