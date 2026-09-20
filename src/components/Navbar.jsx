@@ -1,4 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
+import logo from "../../logo.jpg";
 
 function Navbar() {
   const navigate = useNavigate();
@@ -19,9 +20,13 @@ function Navbar() {
 
         <Link
           to="/"
-          className="text-2xl font-bold tracking-tight"
+          className="brand-lockup"
         >
-          UM-TAP
+          <img
+            src={logo}
+            alt="UM-TAP"
+            className="brand-mark"
+          />
         </Link>
 
 

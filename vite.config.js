@@ -7,4 +7,9 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  server: {
+    watch: {
+      ignored: ['**/*.{jpg,jpeg,png,gif,webp}'],
+    },
+  },
 })
