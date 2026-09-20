@@ -1,180 +1,58 @@
-import {
-  BrowserRouter,
-  Routes,
-  Route
-} from "react-router-dom";
-
+import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import ProtectedRoute from "../components/ProtectedRoute";
+import StudentLayout from "../layouts/StudentLayout";
+import OrganizerLayout from "../layouts/OrganizerLayout";
+import AdminLayout from "../layouts/AdminLayout";
+import Landing from "../pages/Landing";
+import Login from "../pages/auth/Login";
+import Register from "../pages/auth/Register";
+import StudentDashboard from "../pages/student/StudentDashboard";
+import Events from "../pages/student/Events";
+import EventDetails from "../pages/student/EventDetails";
+import MyRegistrations from "../pages/student/MyRegistrations";
+import MyQRCode from "../pages/student/MyQRCode";
+import OrganizerWorkspace from "../pages/organizer/OrganizerWorkspace";
+import EventManagementWorkspace from "../pages/organizer/EventManagementWorkspace";
+import EventFormWorkspace from "../pages/organizer/EventFormWorkspace";
+import ScannerWorkspace from "../pages/organizer/ScannerWorkspace";
+import AttendanceWorkspace from "../pages/organizer/AttendanceWorkspace";
+import AdminWorkspace from "../pages/admin/AdminWorkspace";
+import AccountManagementWorkspace from "../pages/admin/AccountManagementWorkspace";
 
-// Student
-import Home from "../pages/Home";
-import Events from "../pages/Events";
-import EventDetails from "../pages/EventDetails";
-import Register from "../pages/Register";
-import RegistrationSuccess from "../pages/RegistrationSuccess";
-import QRCode from "../pages/QRCode";
-import MyEvents from "../pages/MyEvents";
-import Login from "../pages/Login";
-
-// Organizer
-import OrganizerDashboard from "../pages/organizer/OrganizerDashboard";
-import ManageEvents from "../pages/organizer/ManageEvents";
-import CreateEvent from "../pages/organizer/CreateEvent";
-import EditEvent from "../pages/organizer/EditEvent";
-import RegisteredStudents from "../pages/organizer/RegisteredStudents";
-import QRScanner from "../pages/organizer/QRScanner";
-
-// Admin
-import AdminDashboard from "../pages/admin/AdminDashboard";
-import ManageOrganizers from "../pages/admin/ManageOrganizers";
-
+function PublicLayout() {
+  return <><Navbar /><Outlet /></>;
+}
 
 function AppRoutes() {
-  return (
-    <BrowserRouter>
-
-      <Navbar />
-
-      <Routes>
-        {/* PUBLIC / STUDENT     */}
-
-        <Route
-          path="/"
-          element={<Home />}
-        />
-
-        <Route
-          path="/events"
-          element={<Events />}
-        />
-
-        <Route
-          path="/events/:id"
-          element={<EventDetails />}
-        />
-
-        <Route
-          path="/events/:id/register"
-          element={
-            <ProtectedRoute allowedRoles={["student"]}>
-              <Register />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/events/:id/success"
-          element={
-            <ProtectedRoute allowedRoles={["student"]}>
-              <RegistrationSuccess />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/events/:id/qr"
-          element={
-            <ProtectedRoute allowedRoles={["student"]}>
-              <QRCode />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/my-events"
-          element={
-            <ProtectedRoute allowedRoles={["student"]}>
-              <MyEvents />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/login"
-          element={<Login />}
-        />
-
-        {/* ORGANIZER            */}
-
-        <Route
-          path="/organizer"
-          element={
-            <ProtectedRoute allowedRoles={["organizer"]}>
-              <OrganizerDashboard />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/organizer/events"
-          element={
-            <ProtectedRoute allowedRoles={["organizer"]}>
-              <ManageEvents />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/organizer/events/create"
-          element={
-            <ProtectedRoute allowedRoles={["organizer"]}>
-              <CreateEvent />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/organizer/events/:id/edit"
-          element={
-            <ProtectedRoute allowedRoles={["organizer"]}>
-              <EditEvent />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/organizer/students"
-          element={
-            <ProtectedRoute allowedRoles={["organizer"]}>
-              <RegisteredStudents />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/organizer/scanner"
-          element={
-            <ProtectedRoute allowedRoles={["organizer"]}>
-              <QRScanner />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* ADMIN                */}
-
-        <Route
-          path="/admin"
-          element={
-            <ProtectedRoute allowedRoles={["admin"]}>
-              <AdminDashboard />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/admin/organizers"
-          element={
-            <ProtectedRoute allowedRoles={["admin"]}>
-              <ManageOrganizers />
-            </ProtectedRoute>
-          }
-        />
-
-      </Routes>
-
-    </BrowserRouter>
-  );
+  return <BrowserRouter><Routes>
+    <Route element={<PublicLayout />}>
+      <Route path="/" element={<Landing />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/events" element={<Events />} />
+    </Route>
+    <Route element={<ProtectedRoute allowedRoles={["student"]}><StudentLayout /></ProtectedRoute>}>
+      <Route path="/dashboard/student" element={<StudentDashboard />} />
+      <Route path="/student/events" element={<Events />} />
+      <Route path="/student/events/:id" element={<EventDetails />} />
+      <Route path="/student/registrations" element={<MyRegistrations />} />
+      <Route path="/student/qr" element={<MyQRCode />} />
+    </Route>
+    <Route element={<ProtectedRoute allowedRoles={["organizer"]}><OrganizerLayout /></ProtectedRoute>}>
+      <Route path="/dashboard/organizer" element={<OrganizerWorkspace />} />
+      <Route path="/organizer/events" element={<EventManagementWorkspace />} />
+      <Route path="/organizer/events/new" element={<EventFormWorkspace />} />
+      <Route path="/organizer/events/:id/edit" element={<EventFormWorkspace />} />
+      <Route path="/organizer/scanner" element={<ScannerWorkspace />} />
+      <Route path="/organizer/attendance" element={<AttendanceWorkspace />} />
+    </Route>
+    <Route element={<ProtectedRoute allowedRoles={["admin"]}><AdminLayout /></ProtectedRoute>}>
+      <Route path="/dashboard/admin" element={<AdminWorkspace />} />
+      <Route path="/admin/accounts" element={<AccountManagementWorkspace />} />
+    </Route>
+    <Route path="*" element={<Navigate to="/" replace />} />
+  </Routes></BrowserRouter>;
 }
 
 export default AppRoutes;

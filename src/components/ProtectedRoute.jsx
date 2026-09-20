@@ -1,7 +1,8 @@
 import { Navigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 function ProtectedRoute({ children, allowedRoles }) {
-  const user = JSON.parse(localStorage.getItem("umtUser"));
+  const { user } = useAuth();
 
   // No logged-in user
   if (!user) {
@@ -10,7 +11,7 @@ function ProtectedRoute({ children, allowedRoles }) {
 
   // User has a role but it is not allowed
   if (!allowedRoles.includes(user.role)) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={`/dashboard/${user.role}`} replace />;
   }
 
   return children;
