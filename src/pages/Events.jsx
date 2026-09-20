@@ -1,43 +1,27 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 function Events() {
   const navigate = useNavigate();
 
+  // 1. Setup dynamic states instead of static variables
+  const [events, setEvents] = useState([]);
   const [selectedDepartment, setSelectedDepartment] = useState("All");
+  const [loading, setLoading] = useState(true);
 
-  const events = [
-    {
-      id: 1,
-      title: "BSIT General Assembly",
-      department: "BSIT",
-      date: "September 15, 2026",
-      time: "8:00 AM - 5:00 PM",
-      venue: "UM Tagum Gymnasium",
-      description:
-        "A general assembly for BSIT students featuring announcements, activities, and important updates."
-    },
-    {
-      id: 2,
-      title: "University Student Seminar",
-      department: "All Departments",
-      date: "September 20, 2026",
-      time: "9:00 AM - 12:00 PM",
-      venue: "University Auditorium",
-      description:
-        "An informative seminar designed to provide students with useful knowledge and insights."
-    },
-    {
-      id: 3,
-      title: "Technology Week",
-      department: "CCIS",
-      date: "September 25, 2026",
-      time: "8:00 AM - 4:00 PM",
-      venue: "UM Tagum Campus",
-      description:
-        "A week-long event featuring technology-related activities, competitions, and learning sessions."
-    }
-  ];
+  // 2. Fetch data from your backend API when the page mounts
+  useEffect(() => {
+    fetch("http://localhost:5000/api/events")
+      .then((response) => response.json())
+      .then((data) => {
+        setEvents(data);
+        setLoading(false);
+      })
+      .catch((error) => {
+        console.error("Database connection failed:", error);
+        setLoading(false);
+      });
+  }, []);
 
   const departments = [
     "All",
@@ -46,12 +30,21 @@ function Events() {
     "All Departments"
   ];
 
+  // 3. Filter data dynamically using your database column names
   const filteredEvents =
     selectedDepartment === "All"
       ? events
       : events.filter(
-          (event) => event.department === selectedDepartment
+          (event) => (event.department_name || event.department) === selectedDepartment
         );
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-lg font-medium text-gray-600">
+         Loading events...
+      </div>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-10">
@@ -80,7 +73,7 @@ function Events() {
           id="department"
           value={selectedDepartment}
           onChange={(e) => setSelectedDepartment(e.target.value)}
-          className="mt-2 rounded-lg border px-4 py-3 outline-none focus:ring-2"
+          className="mt-2 rounded-lg border px-4 py-3 outline-none focus:ring-2 focus:ring-black"
         >
           {departments.map((department) => (
             <option
@@ -100,26 +93,27 @@ function Events() {
 
         {filteredEvents.map((event) => (
           <div
-            key={event.id}
+            key={event.event_id || event.id}
             className="rounded-xl border bg-white p-6 shadow-sm transition hover:shadow-md"
           >
 
             <p className="text-sm font-medium text-gray-500">
-              {event.department}
+              {event.department_name || event.department}
             </p>
 
             <h2 className="mt-2 text-2xl font-bold">
-              {event.title}
+              {event.event_name || event.title}
             </h2>
 
             <div className="mt-4 space-y-2 text-gray-600">
-              <p>📅 {event.date}</p>
-              <p>🕐 {event.time}</p>
-              <p>📍 {event.venue}</p>
+              {/* Formats dates safely from database stamps */}
+              <p>📅 {event.event_date ? new Date(event.event_date).toLocaleDateString() : event.date}</p>
+              <p>🕐 {event.start_time && event.end_time ? `${event.start_time} - ${event.end_time}` : event.time}</p>
+              <p>📍 {event.venue || event.location}</p>
             </div>
 
             <button
-              onClick={() => navigate(`/events/${event.id}`)}
+              onClick={() => navigate(`/events/${event.event_id || event.id}`)}
               className="mt-6 w-full rounded-lg bg-black px-4 py-3 font-semibold text-white transition hover:bg-gray-800"
             >
               View Event
@@ -130,7 +124,7 @@ function Events() {
 
       </div>
 
-      {/* No Events */}
+      {/* No Events Match */}
       {filteredEvents.length === 0 && (
         <div className="mt-10 text-center text-gray-500">
           No events available for this department.

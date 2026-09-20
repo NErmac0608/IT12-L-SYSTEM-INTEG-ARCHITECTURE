@@ -6,80 +6,57 @@ function Login() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleLogin = (e) => {
     e.preventDefault();
+    setIsSubmitting(true);
 
-    /*
-      FRONTEND-ONLY DEMO ACCOUNTS
+    // Send payload variables straight to your database auth channel
+    fetch("http://localhost:5000/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        setIsSubmitting(false);
+        
+        if (!data.success) {
+          alert(data.message || "Invalid credentials.");
+          return;
+        }
 
-      Student:
-      student@umindanao.edu.ph
-      student123
+        const account = data.user;
 
-      Organizer:
-      organizer@umindanao.edu.ph
-      organizer123
+        // Securely capture user row attributes for active contextual views
+        localStorage.setItem(
+          "umtUser",
+          JSON.stringify({
+            id: account.id,
+            name: account.name,
+            email: account.email,
+            role: account.role,
+            studentId: account.studentId // Saved for contextual queries inside MyEvents hooks
+          })
+        );
 
-      Admin:
-      admin@umindanao.edu.ph
-      admin123
-    */
-
-    const accounts = [
-      {
-        email: "student@umindanao.edu.ph",
-        password: "student123",
-        name: "Demo Student",
-        role: "student",
-      },
-      {
-        email: "organizer@umindanao.edu.ph",
-        password: "organizer123",
-        name: "Demo Organizer",
-        role: "organizer",
-      },
-      {
-        email: "admin@umindanao.edu.ph",
-        password: "admin123",
-        name: "System Administrator",
-        role: "admin",
-      },
-    ];
-
-    const account = accounts.find(
-      (user) =>
-        user.email === email &&
-        user.password === password
-    );
-
-    if (!account) {
-      alert("Invalid institutional email or password.");
-      return;
-    }
-
-    // Save currently logged-in user
-    localStorage.setItem(
-      "umtUser",
-      JSON.stringify({
-        name: account.name,
-        email: account.email,
-        role: account.role,
+        // Dynamic multi-role workspace routing redirect logic
+        if (account.role === "student") {
+          navigate("/events");
+        } else if (account.role === "organizer") {
+          navigate("/organizer");
+        } else if (account.role === "admin") {
+          navigate("/admin");
+        } else {
+          navigate("/events"); // Safe standard option fallback
+        }
       })
-    );
-
-    // Redirect according to role
-    if (account.role === "student") {
-      navigate("/events");
-    }
-
-    if (account.role === "organizer") {
-      navigate("/organizer");
-    }
-
-    if (account.role === "admin") {
-      navigate("/admin");
-    }
+      .catch((error) => {
+        console.error("Database authorization failed:", error);
+        setIsSubmitting(false);
+        alert("Server communication failure. Make sure your Node.js backend application is live.");
+      });
   };
 
   return (
@@ -114,9 +91,10 @@ function Login() {
               type="email"
               required
               value={email}
+              disabled={isSubmitting}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Enter your institutional email"
-              className="mt-2 w-full rounded-lg border px-4 py-3 outline-none focus:ring-2"
+              className="mt-2 w-full rounded-lg border px-4 py-3 outline-none focus:ring-2 focus:ring-black disabled:bg-gray-100"
             />
           </div>
 
@@ -130,17 +108,19 @@ function Login() {
               type="password"
               required
               value={password}
+              disabled={isSubmitting}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter your password"
-              className="mt-2 w-full rounded-lg border px-4 py-3 outline-none focus:ring-2"
+              className="mt-2 w-full rounded-lg border px-4 py-3 outline-none focus:ring-2 focus:ring-black disabled:bg-gray-100"
             />
           </div>
 
           <button
             type="submit"
-            className="w-full rounded-lg bg-black px-5 py-3 font-semibold text-white hover:bg-gray-800"
+            disabled={isSubmitting}
+            className="w-full rounded-lg bg-black px-5 py-3 font-semibold text-white hover:bg-gray-800 transition-colors disabled:bg-gray-400"
           >
-            Login
+            {isSubmitting ? "Verifying Profile..." : "Login"}
           </button>
 
         </form>

@@ -12,6 +12,7 @@ function CreateEvent() {
     venue: "",
     description: "",
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleChange = (e) => {
     setForm({
@@ -22,24 +23,45 @@ function CreateEvent() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    setIsSubmitting(true);
 
-    const existingEvents =
-      JSON.parse(localStorage.getItem("umtEvents")) || [];
+    // Splits common single layout string formats like '8:00 AM - 5:00 PM' safely into structural table fields
+    const timeParts = form.time.split("-");
+    const startTimeParsed = timeParts[0] ? timeParts[0].trim() : "08:00:00";
+    const endTimeParsed = timeParts[1] ? timeParts[1].trim() : "17:00:00";
 
-    const newEvent = {
-      id: Date.now(),
-      ...form,
-      status: "Upcoming",
+    // Maps form input strings to match your exact PostgreSQL table schema criteria
+    const payload = {
+      event_name: form.title,
+      description: form.description,
+      venue: form.venue,
+      event_date: form.date,
+      start_time: startTimeParsed,
+      end_time: endTimeParsed,
+      organizer_id: 1, // Anchor placeholder linked to default root organizer login profiles
+      department_id: form.department === "All Departments" ? "BSIT" : form.department, // Normalizes values
     };
 
-    localStorage.setItem(
-      "umtEvents",
-      JSON.stringify([...existingEvents, newEvent])
-    );
-
-    alert("Event created successfully!");
-
-    navigate("/organizer/events");
+    fetch("http://localhost:5000/api/events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("Database rejected event entry insertion profile");
+        return res.json();
+      })
+      .then(() => {
+        alert(" Event successfully created!");
+        navigate("/organizer/events");
+      })
+      .catch((err) => {
+        console.error("Database connection failure:", err);
+        alert("Error connecting to server. Please verify your Express backend app status.");
+      })
+      .finally(() => {
+        setIsSubmitting(false);
+      });
   };
 
   return (
@@ -84,8 +106,9 @@ function CreateEvent() {
                 value={form.title}
                 onChange={handleChange}
                 required
+                disabled={isSubmitting}
                 placeholder="e.g. BSIT General Assembly"
-                className="mt-2 w-full rounded-lg border px-4 py-3 outline-none focus:ring-2"
+                className="mt-2 w-full rounded-lg border px-4 py-3 outline-none focus:ring-2 focus:ring-black disabled:bg-gray-100"
               />
             </div>
 
@@ -99,7 +122,8 @@ function CreateEvent() {
                 value={form.department}
                 onChange={handleChange}
                 required
-                className="mt-2 w-full rounded-lg border px-4 py-3 outline-none focus:ring-2"
+                disabled={isSubmitting}
+                className="mt-2 w-full rounded-lg border px-4 py-3 outline-none focus:ring-2 focus:ring-black disabled:bg-gray-100"
               >
                 <option value="">
                   Select Department
@@ -132,7 +156,8 @@ function CreateEvent() {
                   value={form.date}
                   onChange={handleChange}
                   required
-                  className="mt-2 w-full rounded-lg border px-4 py-3"
+                  disabled={isSubmitting}
+                  className="mt-2 w-full rounded-lg border px-4 py-3 outline-none focus:ring-2 focus:ring-black disabled:bg-gray-100"
                 />
               </div>
 
@@ -147,8 +172,9 @@ function CreateEvent() {
                   value={form.time}
                   onChange={handleChange}
                   required
+                  disabled={isSubmitting}
                   placeholder="8:00 AM - 5:00 PM"
-                  className="mt-2 w-full rounded-lg border px-4 py-3"
+                  className="mt-2 w-full rounded-lg border px-4 py-3 outline-none focus:ring-2 focus:ring-black disabled:bg-gray-100"
                 />
               </div>
 
@@ -164,8 +190,9 @@ function CreateEvent() {
                 value={form.venue}
                 onChange={handleChange}
                 required
+                disabled={isSubmitting}
                 placeholder="Event venue"
-                className="mt-2 w-full rounded-lg border px-4 py-3"
+                className="mt-2 w-full rounded-lg border px-4 py-3 outline-none focus:ring-2 focus:ring-black disabled:bg-gray-100"
               />
             </div>
 
@@ -180,16 +207,18 @@ function CreateEvent() {
                 onChange={handleChange}
                 required
                 rows="5"
+                disabled={isSubmitting}
                 placeholder="Describe the event..."
-                className="mt-2 w-full rounded-lg border px-4 py-3 outline-none focus:ring-2"
+                className="mt-2 w-full rounded-lg border px-4 py-3 outline-none focus:ring-2 focus:ring-black disabled:bg-gray-100"
               />
             </div>
 
             <button
               type="submit"
-              className="w-full rounded-lg bg-black px-5 py-3 font-semibold text-white hover:bg-gray-800"
+              disabled={isSubmitting}
+              className="w-full rounded-lg bg-black px-5 py-3 font-semibold text-white hover:bg-gray-800 transition-colors disabled:bg-gray-400"
             >
-              Create Event
+              {isSubmitting ? "Saving to Database..." : "Create Event"}
             </button>
 
           </form>
