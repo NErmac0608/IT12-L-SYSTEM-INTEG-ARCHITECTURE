@@ -30,9 +30,9 @@ function RegisteredStudents() {
   // 3. Map search queries safely against column values from your view schema
   const filteredStudents = students.filter(
     (student) =>
-      (student.student_name || "").toLowerCase().includes(search.toLowerCase()) ||
+      (student.full_name || "").toLowerCase().includes(search.toLowerCase()) ||
       (student.student_id || "").toLowerCase().includes(search.toLowerCase()) ||
-      (student.event_name || "").toLowerCase().includes(search.toLowerCase())
+      (student.event_title || "").toLowerCase().includes(search.toLowerCase())
   );
 
   if (loading) {
@@ -116,7 +116,7 @@ function RegisteredStudents() {
                   className="hover:bg-gray-50 transition-colors"
                 >
                   <td className="px-6 py-4 font-semibold text-gray-800">
-                    {student.student_name}
+                    {student.full_name}
                   </td>
 
                   <td className="px-6 py-4 text-gray-600">
@@ -124,22 +124,22 @@ function RegisteredStudents() {
                   </td>
 
                   <td className="px-6 py-4 text-gray-600">
-                    {student.email || `${student.student_id}@umindanao.edu.ph`}
+                    {student.school_email}
                   </td>
 
                   <td className="px-6 py-4 text-gray-600 font-medium">
-                    {student.event_name}
+                    {student.event_title}
                   </td>
 
                   <td className="px-6 py-4">
                     <span
-                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                        student.attendance_status === "Attended"
+                      className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider ${
+                        student.status === "attended"
                           ? "bg-green-100 text-green-700"
                           : "bg-yellow-100 text-yellow-700"
                       }`}
                     >
-                      {student.attendance_status || "Absent"}
+                      {student.status || "registered"}
                     </span>
                   </td>
                 </tr>

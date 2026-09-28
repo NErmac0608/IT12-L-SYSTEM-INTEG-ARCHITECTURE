@@ -1,6 +1,7 @@
 import { Html5QrcodeScanner } from "html5-qrcode";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { apiRequest } from "../../services/api";
 
 function QRScanner() {
   const navigate = useNavigate();
@@ -21,27 +22,25 @@ function QRScanner() {
       false
     );
 
-    const handleSuccess = (decodedText) => {
+    const handleSuccess = async (decodedText) => {
       // 1. Send the ticket validation token straight to the PostgreSQL connector
-      fetch("http://localhost:5000/api/attendance/scan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ qr_token_string: decodedText }),
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          setResult(decodedText);
-          if (data.success) {
-            setScanStatus({ success: true, message: "Student attendance has been recorded successfully!" });
-          } else {
-            setScanStatus({ success: false, message: data.message || "Invalid or unknown digital ticket token." });
-          }
-        })
-        .catch((err) => {
-          console.error("Database tracking error:", err);
-          setResult(decodedText);
-          setScanStatus({ success: false, message: "Communication error connecting to your backend server application." });
+      try {
+        const data = await apiRequest("/attendance/scan", {
+          method: "POST",
+          body: JSON.stringify({ qr_token_string: decodedText }),
         });
+        
+        setResult(decodedText);
+        if (data.success) {
+          setScanStatus({ success: true, message: "Student attendance has been recorded successfully!" });
+        } else {
+          setScanStatus({ success: false, message: data.message || "Invalid or unknown digital ticket token." });
+        }
+      } catch (err) {
+        console.error("Database tracking error:", err);
+        setResult(decodedText);
+        setScanStatus({ success: false, message: "Communication error connecting to your backend server application." });
+      }
 
       scanner.clear().catch(() => {});
     };

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState } from "react";
-import { DEMO_PASSWORD, demoUsers } from "../data/mockData";
+import { apiRequest } from "../services/api";
 
 const AuthContext = createContext(null);
 
@@ -9,16 +9,29 @@ export function AuthProvider({ children }) {
     return storedUser ? JSON.parse(storedUser) : null;
   });
 
-  const login = (username, password) => {
-    const nextUser = demoUsers.find((demoUser) => demoUser.username === username && password === DEMO_PASSWORD);
-    if (!nextUser) return { success: false, message: `Use ${DEMO_PASSWORD} as the demo password.` };
-    localStorage.setItem("umtUser", JSON.stringify(nextUser));
-    setUser(nextUser);
-    return { success: true, user: nextUser };
+  const login = async (username, password) => {
+    try {
+      const data = await apiRequest("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email: username, password }),
+      });
+      
+      if (data.success) {
+        localStorage.setItem("umtUser", JSON.stringify(data.user));
+        if (data.token) {
+          localStorage.setItem("token", data.token);
+        }
+        setUser(data.user);
+        return { success: true, user: data.user };
+      }
+    } catch (error) {
+      return { success: false, message: error.message || "Invalid credentials." };
+    }
   };
 
   const logout = () => {
     localStorage.removeItem("umtUser");
+    localStorage.removeItem("token");
     setUser(null);
   };
 

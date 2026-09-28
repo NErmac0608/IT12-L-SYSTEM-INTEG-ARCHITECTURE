@@ -768,9 +768,9 @@ $$ LANGUAGE plpgsql;
 -- FROM event_attendance_view
 -- WHERE event_id = 1;
 
-=============================================================
-14. Demo Accounts for Testing
-=============================================================
+-- =============================================================
+-- 14. Demo Accounts for Testing
+-- =============================================================
 -- 1. Insert a demo student account
 INSERT INTO users (full_name, school_email, password_hash, role, student_id, department_id)
 VALUES ('Demo Student', 'student@umindanao.edu.ph', 'student123', 'student', 'N.145242', 1)

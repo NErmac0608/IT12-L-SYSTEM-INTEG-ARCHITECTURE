@@ -1,49 +1,109 @@
-import { createContext, useContext, useState } from "react";
-import { initialEvents } from "../data/mockData";
+import { createContext, useContext, useState, useEffect } from "react";
+import { apiRequest } from "../services/api";
+import { useAuth } from "./AuthContext";
 
 const EventContext = createContext(null);
-const eventsKey = "event-attendance-events";
-const registrationsKey = "event-attendance-registrations";
-
-function readStorage(key, fallback) {
-  const saved = localStorage.getItem(key);
-  return saved ? JSON.parse(saved) : fallback;
-}
 
 export function EventProvider({ children }) {
-  const [events, setEvents] = useState(() => readStorage(eventsKey, initialEvents));
-  const [registrations, setRegistrations] = useState(() => readStorage(registrationsKey, []));
+  const [events, setEvents] = useState([]);
+  const [registrations, setRegistrations] = useState([]);
+  const { user } = useAuth();
 
-  const persistEvents = (nextEvents) => {
-    setEvents(nextEvents);
-    localStorage.setItem(eventsKey, JSON.stringify(nextEvents));
+  const fetchEvents = async () => {
+    try {
+      const data = await apiRequest("/events");
+      setEvents(data);
+    } catch (error) {
+      console.error("Failed to fetch events:", error);
+    }
   };
 
-  const createEvent = (event) => {
-    const nextEvent = { ...event, id: Date.now() };
-    persistEvents([nextEvent, ...events]);
-    return nextEvent;
+  const fetchRegistrations = async () => {
+    try {
+      const data = await apiRequest("/attendance");
+      setRegistrations(data);
+    } catch (error) {
+      console.error("Failed to fetch registrations:", error);
+    }
   };
 
-  const updateEvent = (id, changes) => {
-    persistEvents(events.map((event) => (event.id === id ? { ...event, ...changes } : event)));
+  useEffect(() => {
+    fetchEvents();
+    if (user) {
+      fetchRegistrations();
+    }
+  }, [user]);
+
+  const createEvent = async (event) => {
+    try {
+      const data = await apiRequest("/events", {
+        method: "POST",
+        body: JSON.stringify(event),
+      });
+      await fetchEvents();
+      return true;
+    } catch (error) {
+      console.error("Failed to create event:", error);
+      alert(error.message || "Failed to create event");
+      return false;
+    }
   };
 
-  const deleteEvent = (id) => persistEvents(events.filter((event) => event.id !== id));
-
-  const registerForEvent = (eventId, userId) => {
-    if (registrations.some((item) => item.eventId === eventId && item.userId === userId)) return false;
-    const next = [...registrations, { eventId, userId, status: "Registered", registeredAt: new Date().toISOString() }];
-    setRegistrations(next);
-    localStorage.setItem(registrationsKey, JSON.stringify(next));
-    return true;
+  const updateEvent = async (id, changes) => {
+    try {
+      await apiRequest(`/events/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(changes),
+      });
+      await fetchEvents();
+      return true;
+    } catch (error) {
+      console.error("Failed to update event:", error);
+      return false;
+    }
   };
 
-  const isRegistered = (eventId, userId) => registrations.some((item) => item.eventId === eventId && item.userId === userId);
-  const getRegistrations = (userId) => registrations.filter((item) => item.userId === userId);
+  const deleteEvent = async (id) => {
+    try {
+      await apiRequest(`/events/${id}`, {
+        method: "DELETE",
+      });
+      await fetchEvents();
+      return true;
+    } catch (error) {
+      console.error("Failed to delete event:", error);
+      return false;
+    }
+  };
+
+  const registerForEvent = async (eventId, userId) => {
+    try {
+      await apiRequest("/registrations", {
+        method: "POST",
+        body: JSON.stringify({ student_id: userId, event_id: eventId }),
+      });
+      await fetchRegistrations();
+      return true;
+    } catch (error) {
+      console.error("Failed to register:", error);
+      return false;
+    }
+  };
+
+  const isRegistered = (eventId, userId) => {
+    return registrations.some(
+      (item) => (item.event_id === eventId || item.eventId === eventId) && (item.student_id_record === userId || item.userId === userId || item.student_id === userId)
+    );
+  };
+
+  const getRegistrations = (userId) => {
+    return registrations.filter(
+      (item) => item.student_id_record === userId || item.userId === userId || item.student_id === userId
+    );
+  };
 
   return (
-    <EventContext.Provider value={{ events, registrations, createEvent, updateEvent, deleteEvent, registerForEvent, isRegistered, getRegistrations }}>
+    <EventContext.Provider value={{ events, registrations, createEvent, updateEvent, deleteEvent, registerForEvent, isRegistered, getRegistrations, refreshEvents: fetchEvents, refreshRegistrations: fetchRegistrations }}>
       {children}
     </EventContext.Provider>
   );

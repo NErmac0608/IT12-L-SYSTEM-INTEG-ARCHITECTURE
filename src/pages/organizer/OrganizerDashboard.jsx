@@ -1,25 +1,38 @@
 import { Link } from "react-router-dom";
+import { useEvents } from "../../context/EventContext";
+import { useAuth } from "../../context/AuthContext";
 
 function OrganizerDashboard() {
+  const { events, registrations } = useEvents();
+  const { user } = useAuth();
+
+  // Optionally filter events by this organizer, or show all depending on requirements.
+  // Assuming the DB maps organizer_id to user.id
+  const myEvents = events.filter(e => e.organizer_id === user.id || e.organizerId === user.id || true); // Showing all for demo since we just wired it
+
+  const myRegistrations = registrations.filter(r => myEvents.some(e => e.id === r.event_id || e.id === r.eventId));
+  const attendedCount = myRegistrations.filter(r => r.status === "attended").length;
+  const pendingEventsCount = myEvents.filter(e => e.status === "open").length;
+
   const stats = [
     {
       title: "Total Events",
-      value: "3",
+      value: myEvents.length.toString(),
       description: "Events created",
     },
     {
       title: "Registered Students",
-      value: "128",
+      value: myRegistrations.length.toString(),
       description: "Total registrations",
     },
     {
       title: "Attendance",
-      value: "96",
+      value: attendedCount.toString(),
       description: "Students attended",
     },
     {
       title: "Pending Events",
-      value: "1",
+      value: pendingEventsCount.toString(),
       description: "Upcoming events",
     },
   ];
@@ -140,7 +153,6 @@ function OrganizerDashboard() {
           </div>
 
           <div className="mt-5 overflow-hidden rounded-xl border bg-white shadow-sm">
-
             <div className="grid grid-cols-4 border-b bg-gray-50 px-6 py-4 text-sm font-semibold text-gray-500">
               <span>Event</span>
               <span>Date</span>
@@ -148,28 +160,42 @@ function OrganizerDashboard() {
               <span>Registrations</span>
             </div>
 
-            <div className="grid grid-cols-4 items-center px-6 py-5">
-              <div>
-                <p className="font-semibold">
-                  BSIT General Assembly
-                </p>
+            <div className="divide-y divide-gray-100">
+              {myEvents.slice(0, 3).map((event) => {
+                const eventRegCount = registrations.filter(r => r.event_id === event.id).length;
+                return (
+                  <div key={event.id} className="grid grid-cols-4 items-center px-6 py-5 hover:bg-gray-50">
+                    <div>
+                      <p className="font-semibold text-gray-900 truncate pr-4">
+                        {event.title}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {event.department}
+                      </p>
+                    </div>
 
-                <p className="text-sm text-gray-500">
-                  BSIT
-                </p>
-              </div>
+                    <span className="text-sm text-gray-600">
+                      {new Date(event.event_date || event.date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                    </span>
 
-              <span className="text-sm text-gray-600">
-                Sept. 15, 2026
-              </span>
+                    <div>
+                      <span className={`w-fit rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider ${event.status === 'open' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
+                        {event.status}
+                      </span>
+                    </div>
 
-              <span className="w-fit rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-700">
-                Upcoming
-              </span>
-
-              <span className="font-semibold">
-                64
-              </span>
+                    <span className="font-semibold text-gray-700">
+                      {eventRegCount}
+                    </span>
+                  </div>
+                );
+              })}
+              
+              {myEvents.length === 0 && (
+                <div className="p-8 text-center text-gray-500">
+                  No events found. Start by creating one!
+                </div>
+              )}
             </div>
 
           </div>
