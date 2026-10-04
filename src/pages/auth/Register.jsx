@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiRequest } from "../../services/api";
+import { UserPlus, ArrowRight } from "lucide-react";
 
 function Register() {
   const [formData, setFormData] = useState({
@@ -16,7 +17,6 @@ function Register() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Fetch departments for the dropdown
     apiRequest("/departments")
       .then(data => setDepartments(data))
       .catch(err => console.error("Could not fetch departments:", err));
@@ -59,49 +59,134 @@ function Register() {
   };
 
   return (
-    <main className="auth-page">
-      <section className="auth-card" style={{ maxWidth: "450px" }}>
-        <p className="eyebrow">UM-TAP</p>
-        <h1>Create your profile</h1>
-        <p className="muted">Join UM-TAP to register for university events.</p>
+    <main className="min-h-[calc(100dvh-64px)] flex items-center justify-center p-4 sm:p-6 bg-[#FBFBFA] font-sans py-8">
+      <div className="w-full max-w-[460px] bg-white rounded-2xl shadow-sm border border-[#EAEAEA] p-6 sm:p-8">
+        <div className="mb-6">
+          <div className="w-10 h-10 bg-[#F7F6F3] rounded-xl flex items-center justify-center text-[#102a43] mb-4 border border-[#EAEAEA]">
+            <UserPlus size={18} strokeWidth={2} />
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-[#102a43] mb-1">
+            Create student profile
+          </h1>
+          <p className="text-[#787774] text-xs sm:text-sm">
+            Join UM-TAP to register for university events and claim passes.
+          </p>
+        </div>
         
-        <form onSubmit={submit} className="form-stack">
-          <label>Full Name
-            <input name="fullName" value={formData.fullName} onChange={handleChange} required placeholder="Juan Dela Cruz" />
-          </label>
+        <form onSubmit={submit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-bold uppercase tracking-wider text-[#102a43]">
+              Full Name
+            </label>
+            <input 
+              name="fullName" 
+              value={formData.fullName} 
+              onChange={handleChange} 
+              required 
+              autoComplete="name"
+              placeholder="Juan Dela Cruz" 
+              className="w-full bg-[#FBFBFA] border border-[#EAEAEA] rounded-xl px-3.5 py-2.5 text-sm text-[#111111] placeholder:text-[#A09F9C] focus:outline-none focus:border-[#102a43] focus:ring-1 focus:ring-[#102a43] transition-colors"
+            />
+          </div>
           
-          <label>UM Email
-            <input name="email" type="email" value={formData.email} onChange={handleChange} required placeholder="student@umindanao.edu.ph" />
-          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-bold uppercase tracking-wider text-[#102a43]">
+                UM Email
+              </label>
+              <input 
+                name="email" 
+                type="email" 
+                value={formData.email} 
+                onChange={handleChange} 
+                required 
+                autoComplete="email"
+                inputMode="email"
+                placeholder="student@umindanao.edu.ph" 
+                className="w-full bg-[#FBFBFA] border border-[#EAEAEA] rounded-xl px-3.5 py-2.5 text-sm text-[#111111] placeholder:text-[#A09F9C] focus:outline-none focus:border-[#102a43] focus:ring-1 focus:ring-[#102a43] transition-colors"
+              />
+            </div>
 
-          <label>Student ID
-            <input name="studentId" value={formData.studentId} onChange={handleChange} required placeholder="2026-00001" />
-          </label>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-bold uppercase tracking-wider text-[#102a43]">
+                Student ID
+              </label>
+              <input 
+                name="studentId" 
+                value={formData.studentId} 
+                onChange={handleChange} 
+                required 
+                placeholder="2026-00001" 
+                className="w-full bg-[#FBFBFA] border border-[#EAEAEA] rounded-xl px-3.5 py-2.5 text-sm text-[#111111] placeholder:text-[#A09F9C] focus:outline-none focus:border-[#102a43] focus:ring-1 focus:ring-[#102a43] transition-colors"
+              />
+            </div>
+          </div>
 
-          <label>Department
-            <select name="departmentId" value={formData.departmentId} onChange={handleChange} required className="w-full rounded-lg border px-4 py-3 outline-none focus:ring-2 focus:ring-black">
-              <option value="" disabled>Select your department</option>
-              {departments.map(dept => (
-                <option key={dept.id} value={dept.id}>{dept.name}</option>
-              ))}
-            </select>
-          </label>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-bold uppercase tracking-wider text-[#102a43]">
+              Department
+            </label>
+            <div className="relative w-full">
+              <select 
+                name="departmentId" 
+                value={formData.departmentId} 
+                onChange={handleChange} 
+                required 
+                className="w-full bg-[#FBFBFA] border border-[#EAEAEA] rounded-xl pl-3.5 pr-8 py-2.5 text-sm text-[#111111] focus:outline-none focus:border-[#102a43] focus:ring-1 focus:ring-[#102a43] transition-colors cursor-pointer"
+              >
+                <option value="" disabled>Select your department</option>
+                {departments.map(dept => (
+                  <option key={dept.id} value={dept.id}>{dept.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
           
-          <label>Password
-            <input name="password" type="password" value={formData.password} onChange={handleChange} required placeholder="Create a password" />
-          </label>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-bold uppercase tracking-wider text-[#102a43]">
+              Password
+            </label>
+            <input 
+              name="password" 
+              type="password" 
+              value={formData.password} 
+              onChange={handleChange} 
+              required 
+              autoComplete="new-password"
+              placeholder="Create a secure password" 
+              className="w-full bg-[#FBFBFA] border border-[#EAEAEA] rounded-xl px-3.5 py-2.5 text-sm text-[#111111] placeholder:text-[#A09F9C] focus:outline-none focus:border-[#102a43] focus:ring-1 focus:ring-[#102a43] transition-colors"
+            />
+          </div>
           
-          {message && <p className="form-error">{message}</p>}
+          {message && (
+            <p className="text-[#9A1C1C] bg-[#FDEBEC] border border-[#f5d2d4] px-3.5 py-2.5 rounded-xl text-xs font-semibold">
+              {message}
+            </p>
+          )}
           
-          <button className="button button-dark" type="submit" disabled={isLoading}>
-            {isLoading ? "Creating profile..." : "Create profile"}
+          <button 
+            type="submit" 
+            disabled={isLoading}
+            className="w-full mt-2 inline-flex items-center justify-center gap-2 bg-[#102a43] text-white px-5 py-3.5 rounded-xl font-bold text-sm hover:bg-[#0a1c2e] active:scale-[0.98] transition-all disabled:opacity-70 disabled:pointer-events-none cursor-pointer"
+          >
+            {isLoading ? "Creating profile..." : (
+              <>
+                <span>Create Student Profile</span>
+                <ArrowRight size={16} strokeWidth={2.5} />
+              </>
+            )}
           </button>
         </form>
         
-        <p className="form-note">
-          Already have an account? <Link to="/login">Sign in</Link>
-        </p>
-      </section>
+        <div className="mt-6 pt-5 border-t border-[#EAEAEA] text-center">
+          <p className="text-[#787774] text-xs">
+            Already have an account?{" "}
+            <Link to="/login" className="font-bold text-[#102a43] hover:underline">
+              Sign in
+            </Link>
+          </p>
+        </div>
+      </div>
     </main>
   );
 }

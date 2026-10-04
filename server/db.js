@@ -1,5 +1,10 @@
-const { Pool } = require('pg');
-require('dotenv').config();
+const { Pool, types } = require('pg');
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
+
+// Parse PostgreSQL DATE columns (oid 1082) directly as 'YYYY-MM-DD' strings to prevent UTC date shifting
+types.setTypeParser(1082, (val) => val);
+
 
 const pool = new Pool({
     user: process.env.DB_USER,

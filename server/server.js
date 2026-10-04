@@ -2,16 +2,46 @@ const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 const db = require('./db');
-require('dotenv').config();
+
+// Enforce JWT_SECRET existence (Fail-fast in all environments)
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET.trim() === '') {
+    console.error('❌ FATAL: JWT_SECRET environment variable is missing. Server cannot start securely.');
+    process.exit(1);
+}
+const JWT_SECRET = process.env.JWT_SECRET;
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const JWT_SECRET = process.env.JWT_SECRET || 'um_tap_super_secret_dev_key_2026';
 
-// Middleware configuration layer
-app.use(cors());          // Allows your React frontend port to communicate securely
+// CORS configuration: Whitelist specific client origins
+const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173,http://localhost:3000')
+    .split(',')
+    .map(url => url.trim());
+
+app.use(cors({
+    origin: (origin, callback) => {
+        // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(null, false);
+        }
+    },
+    credentials: true
+}));
+
 app.use(express.json());  // Allows your API routes to parse incoming JSON request payloads
+
+// Catch malformed JSON request payloads gracefully without crashing the server process
+app.use((err, req, res, next) => {
+    if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+        return res.status(400).json({ success: false, message: 'Malformed JSON payload.' });
+    }
+    next(err);
+});
 
 // JWT Authentication Middleware
 function authenticateToken(req, res, next) {
@@ -39,16 +69,37 @@ function requireAdmin(req, res, next) {
     next();
 }
 
+// Organizer or Admin Verification Middleware
+function requireOrganizer(req, res, next) {
+    if (!req.user || (req.user.role !== 'organizer' && req.user.role !== 'admin')) {
+        return res.status(403).json({ success: false, message: 'Organizer access required.' });
+    }
+    next();
+}
+
+// Student or Admin Verification Middleware
+function requireStudent(req, res, next) {
+    if (!req.user || (req.user.role !== 'student' && req.user.role !== 'admin')) {
+        return res.status(403).json({ success: false, message: 'Student access required to register for events.' });
+    }
+    next();
+}
+
 // ==========================================
 // 1. AUTHENTICATION & LOGIN MANAGEMENT
 // ==========================================
 app.post('/api/auth/login', async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const email = (req.body.email || '').trim().toLowerCase();
+        const { password } = req.body;
 
-        // Fetch user strictly by email first so we can extract the password hash and active status
+        if (!email || !password) {
+            return res.status(400).json({ success: false, message: 'Please provide both institutional email and password.' });
+        }
+
+        // Fetch user strictly by normalized email
         const result = await db.query(
-            'SELECT id, full_name, school_email, role, student_id, password_hash, is_active FROM users WHERE school_email = $1;',
+            'SELECT id, full_name, school_email, role, student_id, password_hash, is_active FROM users WHERE LOWER(school_email) = $1;',
             [email]
         );
 
@@ -61,8 +112,7 @@ app.post('/api/auth/login', async (req, res) => {
         // Securely compare the provided password against the database hash
         const isMatch = await bcrypt.compare(password, user.password_hash);
         
-        // Fallback condition (`password === user.password_hash`) keeps existing unhashed demo accounts working
-        if (!isMatch && password !== user.password_hash) {
+        if (!isMatch) {
             return res.status(401).json({ success: false, message: 'Invalid institutional email or password.' });
         }
 
@@ -91,14 +141,23 @@ app.post('/api/auth/login', async (req, res) => {
         });
     } catch (err) {
         console.error('Auth Error:', err.message);
-        res.status(500).send('Server error processing authentication request');
+        res.status(500).json({ success: false, message: 'Server error processing authentication request.' });
     }
 });
 
 // POST: Register a new student account
 app.post('/api/auth/register', async (req, res) => {
     try {
-        const { full_name, school_email, password, student_id, department_id } = req.body;
+        const { full_name, password, student_id, department_id } = req.body;
+        const school_email = (req.body.school_email || '').trim().toLowerCase();
+
+        if (!full_name || !school_email || !password || !student_id || !department_id) {
+            return res.status(400).json({ success: false, message: 'All registration fields are required.' });
+        }
+
+        if (!/^[A-Z0-9._%+-]+@umindanao\.edu\.ph$/i.test(school_email)) {
+            return res.status(400).json({ success: false, message: 'Institutional email must belong to @umindanao.edu.ph domain.' });
+        }
         
         // Hash the password securely using bcrypt
         const saltRounds = 10;
@@ -108,7 +167,7 @@ app.post('/api/auth/register', async (req, res) => {
             `INSERT INTO users (full_name, school_email, password_hash, student_id, department_id, role) 
              VALUES ($1, $2, $3, $4, $5, 'student') 
              RETURNING id, full_name, school_email, role, student_id;`,
-            [full_name, school_email, hashedPassword, student_id, department_id]
+            [full_name.trim(), school_email, hashedPassword, student_id.trim(), department_id]
         );
         
         res.status(201).json({ success: true, user: result.rows[0] });
@@ -129,7 +188,7 @@ app.get('/api/departments', async (req, res) => {
         res.json(result.rows);
     } catch (err) {
         console.error('Departments Fetch Error:', err.message);
-        res.status(500).send('Server Error fetching departments');
+        res.status(500).json({ success: false, message: 'Server error fetching departments.' });
     }
 });
 
@@ -144,7 +203,7 @@ app.get('/api/events', async (req, res) => {
         res.json(result.rows);
     } catch (err) {
         console.error('Fetch Events Error:', err.message);
-        res.status(500).send('Server Error fetching comprehensive event records');
+        res.status(500).json({ success: false, message: 'Server error fetching events.' });
     }
 });
 
@@ -152,22 +211,27 @@ app.get('/api/events', async (req, res) => {
 app.get('/api/events/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const result = await db.query('SELECT * FROM event_list_view WHERE event_id = \$1;', [id]);
+        const result = await db.query('SELECT * FROM event_list_view WHERE event_id = $1;', [id]);
         
         if (result.rows.length === 0) {
-            return res.status(404).send('Event record not found in system schema');
+            return res.status(404).json({ success: false, message: 'Event not found.' });
         }
         res.json(result.rows[0]); // Returns only the single object row to the frontend view handler
     } catch (err) {
         console.error('Single Event Fetch Error:', err.message);
-        res.status(500).send('Server Error fetching targeted event details');
+        res.status(500).json({ success: false, message: 'Server error fetching event details.' });
     }
 });
 
 // POST: Add a completely new event entry into the database fields (For CreateEvent.jsx)
-app.post('/api/events', authenticateToken, async (req, res) => {
+app.post('/api/events', authenticateToken, requireOrganizer, async (req, res) => {
     try {
         const { title, description, venue, date, start_time, end_time, department_id } = req.body;
+        
+        if (!title || !venue || !date || !start_time || !end_time || !department_id) {
+            return res.status(400).json({ success: false, message: 'Please provide all required event details.' });
+        }
+
         // The authenticated user's ID is the organizer
         const organizer_id = req.user.id;
         
@@ -179,47 +243,85 @@ app.post('/api/events', authenticateToken, async (req, res) => {
         res.status(201).json(result.rows[0]);
     } catch (err) {
         console.error('Create Event Error:', err.message);
-        res.status(500).json({ success: false, message: 'DB Error: ' + err.message });
+        res.status(500).json({ success: false, message: 'Server error creating event.' });
     }
 });
 
-// PATCH: Update an existing event
-app.patch('/api/events/:id', authenticateToken, async (req, res) => {
+// PATCH: Update an existing event (Restricted to Event Owner or Admin)
+app.patch('/api/events/:id', authenticateToken, requireOrganizer, async (req, res) => {
     try {
+        // 1. Fetch event to verify existence and ownership
+        const existing = await db.query('SELECT id, organizer_id FROM events WHERE id = $1;', [req.params.id]);
+        if (existing.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Event not found.' });
+        }
+
+        // 2. Ownership check: Must be the creator of the event or an administrator
+        if (req.user.role !== 'admin' && String(existing.rows[0].organizer_id) !== String(req.user.id)) {
+            return res.status(403).json({ success: false, message: 'You are not authorized to modify this event.' });
+        }
+
         const { title, description, venue, date, start_time, end_time, department_id, status } = req.body;
         
         const result = await db.query(
             `UPDATE events 
-             SET title = $1, description = $2, location = $3, event_date = $4, start_time = $5, end_time = $6, department_id = $7, status = COALESCE($8, status)
+             SET title = COALESCE($1, title),
+                 description = COALESCE($2, description),
+                 location = COALESCE($3, location),
+                 event_date = COALESCE($4, event_date),
+                 start_time = COALESCE($5, start_time),
+                 end_time = COALESCE($6, end_time),
+                 department_id = COALESCE($7, department_id),
+                 status = COALESCE($8, status)
              WHERE id = $9 RETURNING *;`,
             [title, description, venue, date, start_time, end_time, department_id, status, req.params.id]
         );
         
-        if (result.rows.length === 0) {
-            return res.status(404).json({ success: false, message: 'Event not found.' });
-        }
         res.json({ success: true, event: result.rows[0] });
     } catch (err) {
         console.error('Event Update Error:', err.message);
-        res.status(500).send('Server error updating event');
+        res.status(500).json({ success: false, message: 'Server error updating event.' });
     }
 });
 
-// DELETE: Remove an event
-app.delete('/api/events/:id', authenticateToken, async (req, res) => {
+// DELETE: Remove or Cancel an event (Restricted to Event Owner or Admin)
+app.delete('/api/events/:id', authenticateToken, requireOrganizer, async (req, res) => {
     try {
-        // Clear registrations first to prevent foreign key constraint violations
-        await db.query('DELETE FROM registrations WHERE event_id = $1;', [req.params.id]);
-        
-        const result = await db.query('DELETE FROM events WHERE id = $1 RETURNING id;', [req.params.id]);
-        
-        if (result.rows.length === 0) {
+        // 1. Fetch event to verify existence and ownership
+        const existing = await db.query('SELECT id, organizer_id FROM events WHERE id = $1;', [req.params.id]);
+        if (existing.rows.length === 0) {
             return res.status(404).json({ success: false, message: 'Event not found.' });
         }
-        res.json({ success: true, message: 'Event deleted successfully.' });
+
+        // 2. Ownership check: Must be the creator of the event or an administrator
+        if (req.user.role !== 'admin' && String(existing.rows[0].organizer_id) !== String(req.user.id)) {
+            return res.status(403).json({ success: false, message: 'You are not authorized to delete this event.' });
+        }
+
+        // 3. Issue 10: Allow admins to hard purge with ?hard=true, otherwise soft-cancel to preserve historical registrations & attendance
+        const hardDelete = req.query.hard === 'true' && req.user.role === 'admin';
+        if (hardDelete) {
+            const client = await db.connect();
+            try {
+                await client.query('BEGIN');
+                await client.query('DELETE FROM registrations WHERE event_id = $1;', [req.params.id]);
+                await client.query('DELETE FROM events WHERE id = $1;', [req.params.id]);
+                await client.query('COMMIT');
+                return res.json({ success: true, message: 'Event permanently purged by administrator.' });
+            } catch (txErr) {
+                await client.query('ROLLBACK');
+                throw txErr;
+            } finally {
+                client.release();
+            }
+        }
+
+        // Default: Soft cancel event to preserve historical records
+        const result = await db.query("UPDATE events SET status = 'cancelled' WHERE id = $1 RETURNING *;", [req.params.id]);
+        res.json({ success: true, message: 'Event marked as cancelled. Historical records preserved.', event: result.rows[0] });
     } catch (err) {
         console.error('Event Deletion Error:', err.message);
-        res.status(500).send('Server error deleting event');
+        res.status(500).json({ success: false, message: 'Server error deleting event.' });
     }
 });
 
@@ -227,53 +329,235 @@ app.delete('/api/events/:id', authenticateToken, async (req, res) => {
 // 3. STUDENT REGISTRATION & ATTENDANCE LOGS
 // ==========================================
 
-// POST: Process incoming student registration requests (For Register.jsx)
-app.post('/api/registrations', async (req, res) => {
+// POST: Process incoming student registration requests (For Register.jsx / EventDetails.jsx)
+app.post('/api/registrations', authenticateToken, requireStudent, async (req, res) => {
     try {
-        const { student_id, event_id } = req.body;
-        
-        // Inserts rows using your database schema logic constraints
+        // Critical 5: Student identity derived directly from JWT
+        const student_user_id = req.user.id;
+        const { event_id } = req.body;
+
+        if (!event_id) {
+            return res.status(400).json({ success: false, message: 'Event ID is required.' });
+        }
+
+        // Verify event exists and is open for registration
+        const eventCheck = await db.query('SELECT id, title, status FROM events WHERE id = $1;', [event_id]);
+        if (eventCheck.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Event not found.' });
+        }
+        if (eventCheck.rows[0].status !== 'open') {
+            return res.status(400).json({ success: false, message: `Registration is unavailable (Event is ${eventCheck.rows[0].status}).` });
+        }
+
+        // Inserts registration; qr_token UUID is automatically generated by PostgreSQL default
         const result = await db.query(
             `INSERT INTO registrations (user_id, event_id, registered_at, status) 
-             VALUES ($1, $2, NOW(), 'registered') RETURNING *;`,
-            [student_id, event_id]
+             VALUES ($1, $2, NOW(), 'registered') 
+             RETURNING id, event_id, user_id, qr_token, status, registered_at;`,
+            [student_user_id, event_id]
         );
-        res.status(201).json({ success: true, registration: result.rows[0] });
+        res.status(201).json({ 
+            success: true, 
+            message: 'Registration successful.', 
+            registration: result.rows[0] 
+        });
     } catch (err) {
         console.error('Registration Insertion Error:', err.message);
-        res.status(500).send('Server Error processing student registration payload');
+        // Issue 8: Handle duplicate registration constraint violation (uq_event_student)
+        if (err.code === '23505') {
+            return res.status(409).json({ success: false, message: 'You are already registered for this event.' });
+        }
+        res.status(500).json({ success: false, message: 'Server error processing student registration.' });
     }
 });
 
-// GET: Fetch master registration ledger rows from your custom database view (For MyEvents / RegisteredStudents)
-app.get('/api/attendance', async (req, res) => {
+// GET: Fetch registration and attendance records with role-based scoping
+app.get('/api/attendance', authenticateToken, async (req, res) => {
     try {
-        const result = await db.query('SELECT * FROM event_attendance_view;');
+        let query = 'SELECT * FROM event_attendance_view';
+        const params = [];
+
+        if (req.user.role === 'student') {
+            // Students only see their own tickets and QR tokens
+            query += ' WHERE student_id_record = $1 ORDER BY registered_at DESC;';
+            params.push(req.user.id);
+        } else if (req.user.role === 'organizer') {
+            // Organizers only see registrations for events they manage
+            query += ' WHERE event_id IN (SELECT id FROM events WHERE organizer_id = $1) ORDER BY registered_at DESC;';
+            params.push(req.user.id);
+        } else {
+            // Admins see all records
+            query += ' ORDER BY registered_at DESC;';
+        }
+
+        const result = await db.query(query, params);
         res.json(result.rows);
     } catch (err) {
         console.error('Attendance Log Fetch Error:', err.message);
-        res.status(500).send('Server Error pulling registration attendance view fields');
+        res.status(500).json({ success: false, message: 'Server error fetching attendance records.' });
     }
 });
 
-// POST: Manage QR verification requests to register student attendance (For QRScanner.jsx)
-app.post('/api/attendance/scan', async (req, res) => {
+// GET: Dedicated student registration tickets endpoint
+app.get('/api/student/registrations', authenticateToken, requireStudent, async (req, res) => {
     try {
-        const { qr_token_string } = req.body; // Evaluates parsed ticket token string emitted by web camera hook
         const result = await db.query(
-            `UPDATE registrations 
-             SET status = 'attended', checked_in_at = CURRENT_TIMESTAMP 
-             WHERE qr_token = $1 RETURNING *;`,
-            [qr_token_string]
+            'SELECT * FROM event_attendance_view WHERE student_id_record = $1 ORDER BY registered_at DESC;',
+            [req.user.id]
         );
-        
-        if (result.rows.length === 0) {
-            return res.status(404).json({ success: false, message: 'Invalid or unregistered digital ticket token.' });
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Student Registrations Fetch Error:', err.message);
+        res.status(500).json({ success: false, message: 'Server error fetching student registrations.' });
+    }
+});
+
+// UUID validation regex for incoming digital ticket tokens
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+// POST: Manage QR verification requests to register student attendance (For QRScanner.jsx)
+app.post('/api/attendance/scan', authenticateToken, requireOrganizer, async (req, res) => {
+    try {
+        const qr_token = (req.body.qr_token_string || req.body.qr_token || '').trim();
+        let event_id = req.body.event_id;
+
+        if (!qr_token || !UUID_REGEX.test(qr_token)) {
+            return res.status(400).json({ success: false, message: 'Invalid or missing QR token format.' });
         }
-        res.json({ success: true, message: 'Attendance confirmed and tracked!', record: result.rows[0] });
+
+        // 1. Resolve event if not explicitly provided
+        if (!event_id) {
+            const regLookup = await db.query('SELECT event_id FROM registrations WHERE qr_token = $1;', [qr_token]);
+            if (regLookup.rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'Invalid QR code or registration not found.' });
+            }
+            event_id = regLookup.rows[0].event_id;
+        }
+
+        // 2. Critical 7: Verify event existence, status, and organizer authorization
+        const eventCheck = await db.query('SELECT id, title, organizer_id, status FROM events WHERE id = $1;', [event_id]);
+        if (eventCheck.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Event not found.' });
+        }
+
+        const event = eventCheck.rows[0];
+
+        // Authorization check: Only event owner or admin can scan attendance
+        if (req.user.role !== 'admin' && String(event.organizer_id) !== String(req.user.id)) {
+            return res.status(403).json({ success: false, message: 'You are not authorized to scan attendance for this event.' });
+        }
+
+        // Event status check: Cannot scan attendance for cancelled or closed events
+        if (event.status === 'cancelled' || event.status === 'closed') {
+            return res.status(400).json({ success: false, message: `Cannot scan attendance. Event is currently ${event.status}.` });
+        }
+
+        // 3. Atomic check-in execution via stored procedure
+        const checkInResult = await db.query('SELECT * FROM check_in_student($1, $2);', [event_id, qr_token]);
+        const checkIn = checkInResult.rows[0];
+
+        if (!checkIn || !checkIn.success) {
+            const isAlreadyRedeemed = checkIn?.message?.includes('already been redeemed');
+            const statusCode = isAlreadyRedeemed ? 409 : 400;
+            return res.status(statusCode).json({
+                success: false,
+                message: checkIn?.message || 'Check-in failed.',
+                details: {
+                    studentName: checkIn?.student_name,
+                    checkedInAt: checkIn?.checked_in_at,
+                    registrationId: checkIn?.registration_id
+                }
+            });
+        }
+
+        res.json({
+            success: true,
+            message: checkIn.message,
+            attendance: {
+                registrationId: checkIn.registration_id,
+                studentName: checkIn.student_name,
+                checkedInAt: checkIn.checked_in_at,
+                eventTitle: event.title
+            }
+        });
     } catch (err) {
         console.error('QR Scan Processing Error:', err.message);
-        res.status(500).send('Server Error checking scan validation tokens');
+        res.status(500).json({ success: false, message: 'Server error processing attendance scan.' });
+    }
+});
+
+// GET: Export attendance roster for an event as CSV (Objective #3)
+app.get('/api/events/:id/export', authenticateToken, requireOrganizer, async (req, res) => {
+    try {
+        const eventId = req.params.id;
+
+        // 1. Verify event existence and authorization
+        const eventResult = await db.query('SELECT id, title, organizer_id FROM events WHERE id = $1;', [eventId]);
+        if (eventResult.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Event not found.' });
+        }
+
+        const event = eventResult.rows[0];
+        if (req.user.role !== 'admin' && String(event.organizer_id) !== String(req.user.id)) {
+            return res.status(403).json({ success: false, message: 'You are not authorized to export attendance for this event.' });
+        }
+
+        // 2. Fetch attendee roster from event_attendance_view
+        const rosterResult = await db.query(
+            `SELECT 
+                registration_id,
+                full_name,
+                student_id,
+                school_email,
+                department,
+                status,
+                registered_at,
+                checked_in_at
+             FROM event_attendance_view 
+             WHERE event_id = $1 
+             ORDER BY full_name ASC;`,
+            [eventId]
+        );
+
+        // 3. Helper to escape and quote CSV values
+        const escapeCsv = (val) => {
+            if (val === null || val === undefined) return '""';
+            const str = String(val).replace(/"/g, '""');
+            return `"${str}"`;
+        };
+
+        const headers = [
+            'Registration ID',
+            'Student Name',
+            'Student ID',
+            'School Email',
+            'Department',
+            'Attendance Status',
+            'Registration Date',
+            'Check-in Timestamp'
+        ];
+
+        const rows = rosterResult.rows.map(row => [
+            escapeCsv(row.registration_id),
+            escapeCsv(row.full_name),
+            escapeCsv(row.student_id || 'N/A'),
+            escapeCsv(row.school_email),
+            escapeCsv(row.department || 'N/A'),
+            escapeCsv(row.status),
+            escapeCsv(row.registered_at ? new Date(row.registered_at).toISOString() : ''),
+            escapeCsv(row.checked_in_at ? new Date(row.checked_in_at).toISOString() : 'N/A')
+        ].join(','));
+
+        const csvContent = [headers.join(','), ...rows].join('\r\n');
+        const sanitizedTitle = event.title.replace(/[^a-zA-Z0-9_-]/g, '_');
+        const filename = `attendance_${sanitizedTitle}_${new Date().toISOString().slice(0, 10)}.csv`;
+
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send('\uFEFF' + csvContent); // Include UTF-8 BOM for proper Excel compatibility
+    } catch (err) {
+        console.error('Attendance Export Error:', err.message);
+        res.status(500).json({ success: false, message: 'Server error generating attendance export.' });
     }
 });
 
@@ -295,7 +579,7 @@ app.get('/api/admin/stats', authenticateToken, requireAdmin, async (req, res) =>
         });
     } catch (err) {
         console.error('Stats Error:', err.message);
-        res.status(500).send('Error fetching admin statistics');
+        res.status(500).json({ success: false, message: 'Server error fetching admin statistics.' });
     }
 });
 
@@ -312,21 +596,31 @@ app.get('/api/admin/organizers', authenticateToken, requireAdmin, async (req, re
         res.json(result.rows);
     } catch (err) {
         console.error('Fetch Organizers Error:', err.message);
-        res.status(500).send('Server error fetching organizers');
+        res.status(500).json({ success: false, message: 'Server error fetching organizers.' });
     }
 });
 
 // POST: Add a new organizer (Protected)
 app.post('/api/admin/organizers', authenticateToken, requireAdmin, async (req, res) => {
     try {
-        const { name, email, department_id, password } = req.body;
+        const { name, department_id, password } = req.body;
+        const email = (req.body.email || '').trim().toLowerCase();
+
+        if (!name || !email || !department_id) {
+            return res.status(400).json({ success: false, message: 'Name, institutional email, and department are required.' });
+        }
+
+        if (!/^[A-Z0-9._%+-]+@umindanao\.edu\.ph$/i.test(email)) {
+            return res.status(400).json({ success: false, message: 'Institutional email must belong to @umindanao.edu.ph domain.' });
+        }
+
         const hashedPassword = await bcrypt.hash(password || 'organizer123', 10); // Default password if none provided
         
         const result = await db.query(
             `INSERT INTO users (full_name, school_email, password_hash, department_id, role) 
              VALUES ($1, $2, $3, $4, 'organizer') 
              RETURNING id;`,
-            [name, email, hashedPassword, department_id]
+            [name.trim(), email, hashedPassword, department_id]
         );
         res.status(201).json({ success: true, id: result.rows[0].id });
     } catch (err) {
@@ -343,7 +637,7 @@ app.patch('/api/admin/organizers/:id/status', authenticateToken, requireAdmin, a
         res.json({ success: true });
     } catch (err) {
         console.error('Toggle Status Error:', err.message);
-        res.status(500).send('Error updating status');
+        res.status(500).json({ success: false, message: 'Error updating organizer status.' });
     }
 });
 

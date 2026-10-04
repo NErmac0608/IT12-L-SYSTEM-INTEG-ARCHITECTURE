@@ -155,7 +155,7 @@ CREATE TABLE events (
 
     -- Event status validation
     CONSTRAINT chk_events_status
-        CHECK (status IN ('open', 'ongoing', 'closed')),
+        CHECK (status IN ('open', 'ongoing', 'closed', 'cancelled')),
 
 
     -- End time must be later than start time
@@ -367,13 +367,20 @@ $$ LANGUAGE plpgsql;
 
 INSERT INTO departments (name)
 VALUES
-    ('BS Information Technology'),
-    ('College of Computing Education'),
-    ('University Administration');
+    ('Department of Teacher Education (DTE)'),
+    ('Department of Criminal Justice Education (DCJE)'),
+    ('Department of Arts and Sciences Education (DASE)'),
+    ('Department of Business Administration Education (DBAE)'),
+    ('Department of Computing Education (DCE)'),
+    ('Department of Engineering Education (DEE)'),
+    ('Department of Accounting Education (DAE)'),
+    ('Department of Hospitality Education (DHE)'),
+    ('Basic Education (JHS & SHS)');
 
 
 -- ---------------------------------------------------------
 -- Sample Users
+-- Passwords are set to 'Password123!' hashed with bcrypt
 -- ---------------------------------------------------------
 
 INSERT INTO users
@@ -388,42 +395,42 @@ INSERT INTO users
 VALUES
 (
     'student01@umindanao.edu.ph',
-    'REPLACE_WITH_REAL_PASSWORD_HASH',
+    '$2b$10$link3/UoZrYetAX4dgYUAewZBMuuajchD7ROREbbfxSAM1KkpRQIi',
     'Juan Dela Cruz',
     '2026-00001',
 
     (
         SELECT id
         FROM departments
-        WHERE name = 'BS Information Technology'
+        WHERE name = 'Department of Computing Education (DCE)'
     ),
 
     'student'
 ),
 (
     'organizer01@umindanao.edu.ph',
-    'REPLACE_WITH_REAL_PASSWORD_HASH',
+    '$2b$10$link3/UoZrYetAX4dgYUAewZBMuuajchD7ROREbbfxSAM1KkpRQIi',
     'Maria Santos',
     NULL,
 
     (
         SELECT id
         FROM departments
-        WHERE name = 'College of Computing Education'
+        WHERE name = 'Department of Computing Education (DCE)'
     ),
 
     'organizer'
 ),
 (
     'admin01@umindanao.edu.ph',
-    'REPLACE_WITH_REAL_PASSWORD_HASH',
+    '$2b$10$link3/UoZrYetAX4dgYUAewZBMuuajchD7ROREbbfxSAM1KkpRQIi',
     'System Administrator',
     NULL,
 
     (
         SELECT id
         FROM departments
-        WHERE name = 'University Administration'
+        WHERE name = 'Department of Arts and Sciences Education (DASE)'
     ),
 
     'admin'
@@ -457,10 +464,10 @@ VALUES
     (
         SELECT id
         FROM departments
-        WHERE name = 'BS Information Technology'
+        WHERE name = 'Department of Computing Education (DCE)'
     ),
 
-    'BSIT General Assembly',
+    'DCE General Assembly',
 
     'General assembly for BSIT students.',
 
@@ -685,14 +692,11 @@ BEGIN
 
     -- Update registration as attended
     UPDATE registrations
-
     SET
         status = 'attended',
         checked_in_at = CURRENT_TIMESTAMP
-
-    WHERE id = v_registration.id
-
-    RETURNING checked_in_at
+    WHERE registrations.id = v_registration.id
+    RETURNING registrations.checked_in_at
     INTO v_registration.checked_in_at;
 
 
@@ -769,19 +773,19 @@ $$ LANGUAGE plpgsql;
 -- WHERE event_id = 1;
 
 -- =============================================================
--- 14. Demo Accounts for Testing
+-- 14. Demo Accounts for Testing (Bcrypt Hashed)
 -- =============================================================
--- 1. Insert a demo student account
+-- 1. Insert a demo student account (password: student123)
 INSERT INTO users (full_name, school_email, password_hash, role, student_id, department_id)
-VALUES ('Demo Student', 'student@umindanao.edu.ph', 'student123', 'student', 'N.145242', 1)
+VALUES ('Demo Student', 'student@umindanao.edu.ph', '$2b$10$/9fzS.I.COWp21nLuMb5rOK.ekzO45I/wT5fsP4KOD4jAWxj.X2Ay', 'student', 'N.145242', (SELECT id FROM departments WHERE name = 'Department of Computing Education (DCE)'))
 ON CONFLICT (school_email) DO NOTHING;
 
--- 2. Insert a demo organizer account
+-- 2. Insert a demo organizer account (password: organizer123)
 INSERT INTO users (full_name, school_email, password_hash, role, department_id)
-VALUES ('Demo Organizer', 'organizer@umindanao.edu.ph', 'organizer123', 'organizer', 1)
+VALUES ('Demo Organizer', 'organizer@umindanao.edu.ph', '$2b$10$R7RnZ0scfgNRTc.ilGAad.FsiBrAVCoyeSNh0jLmC1pHrusXg318a', 'organizer', (SELECT id FROM departments WHERE name = 'Department of Computing Education (DCE)'))
 ON CONFLICT (school_email) DO NOTHING;
 
--- 3. Insert a demo admin account
+-- 3. Insert a demo admin account (password: admin123)
 INSERT INTO users (full_name, school_email, password_hash, role, department_id)
-VALUES ('System Administrator', 'admin@umindanao.edu.ph', 'admin123', 'admin', 1)
+VALUES ('System Administrator', 'admin@umindanao.edu.ph', '$2b$10$vsqCMH7bEyYG./rPSuQIFeWGqz6OqfcR0EzVvrVk4BzrjE4a7A8SO', 'admin', (SELECT id FROM departments WHERE name = 'Department of Computing Education (DCE)'))
 ON CONFLICT (school_email) DO NOTHING;

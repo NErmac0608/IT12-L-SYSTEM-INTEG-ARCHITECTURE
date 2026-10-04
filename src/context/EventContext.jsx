@@ -1,42 +1,85 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { apiRequest } from "../services/api";
 import { useAuth } from "./AuthContext";
 
 const EventContext = createContext(null);
 
 export function EventProvider({ children }) {
-  const [events, setEvents] = useState([]);
-  const [registrations, setRegistrations] = useState([]);
+  const [events, setEvents] = useState(() => {
+    try {
+      const cached = localStorage.getItem("um_tap_cached_events");
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [registrations, setRegistrations] = useState(() => {
+    try {
+      const cached = localStorage.getItem("um_tap_cached_registrations");
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+
   const { user } = useAuth();
 
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     try {
       const data = await apiRequest("/events");
       setEvents(data);
+      localStorage.setItem("um_tap_cached_events", JSON.stringify(data));
     } catch (error) {
-      console.error("Failed to fetch events:", error);
+      console.warn("Could not fetch latest events from network, keeping cached dataset:", error);
     }
-  };
+  }, []);
 
-  const fetchRegistrations = async () => {
+  const fetchRegistrations = useCallback(async () => {
     try {
       const data = await apiRequest("/attendance");
       setRegistrations(data);
+      localStorage.setItem("um_tap_cached_registrations", JSON.stringify(data));
     } catch (error) {
-      console.error("Failed to fetch registrations:", error);
+      console.warn("Could not fetch latest registrations from network, keeping cached passes:", error);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchEvents();
+    let ignore = false;
+    
+    apiRequest("/events")
+      .then((data) => {
+        if (!ignore) {
+          setEvents(data);
+          localStorage.setItem("um_tap_cached_events", JSON.stringify(data));
+        }
+      })
+      .catch((error) => {
+        console.warn("Could not fetch latest events from network, keeping cached dataset:", error);
+      });
+
     if (user) {
-      fetchRegistrations();
+      apiRequest("/attendance")
+        .then((data) => {
+          if (!ignore) {
+            setRegistrations(data);
+            localStorage.setItem("um_tap_cached_registrations", JSON.stringify(data));
+          }
+        })
+        .catch((error) => {
+          console.warn("Could not fetch latest registrations from network, keeping cached passes:", error);
+        });
     }
+
+    return () => {
+      ignore = true;
+    };
   }, [user]);
 
   const createEvent = async (event) => {
     try {
-      const data = await apiRequest("/events", {
+      await apiRequest("/events", {
         method: "POST",
         body: JSON.stringify(event),
       });

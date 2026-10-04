@@ -1,4 +1,4 @@
-import { CalendarDays, ClipboardList, Gauge, QrCode, Settings, Users } from "lucide-react";
+import { CalendarDays, ClipboardList, Gauge, QrCode, Users } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 const roleLinks = {
@@ -8,7 +8,23 @@ const roleLinks = {
 };
 
 function Sidebar({ role }) {
-  return <aside className="sidebar"><p className="eyebrow">{role} workspace</p><nav>{roleLinks[role].map(([label, path, Icon]) => <NavLink key={path} to={path} className={({ isActive }) => `side-link ${isActive ? "active" : ""}`}><Icon size={18} />{label}</NavLink>)}</nav><div className="sidebar-footer"><Settings size={16} /> Mock data mode</div></aside>;
+  return (
+    <aside className="sidebar">
+      <p className="eyebrow">{role} workspace</p>
+      <nav>
+        {roleLinks[role].map(([label, path, Icon]) => (
+          <NavLink 
+            key={path} 
+            to={path} 
+            className={({ isActive }) => `side-link ${isActive ? "active" : ""}`}
+          >
+            <Icon size={18} />
+            <span>{label}</span>
+          </NavLink>
+        ))}
+      </nav>
+    </aside>
+  );
 }
 
 export default Sidebar;

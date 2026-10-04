@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { ArrowLeft, UserPlus, Trash2 } from "lucide-react";
 import { apiRequest } from "../../services/api";
 
 function ManageOrganizers() {
@@ -17,12 +18,7 @@ function ManageOrganizers() {
     password: ""
   });
 
-  useEffect(() => {
-    fetchOrganizers();
-    fetchDepartments();
-  }, []);
-
-  const fetchOrganizers = async () => {
+  const fetchOrganizers = useCallback(async () => {
     try {
       const data = await apiRequest("/admin/organizers");
       setOrganizers(data);
@@ -31,16 +27,30 @@ function ManageOrganizers() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const fetchDepartments = async () => {
-    try {
-      const data = await apiRequest("/departments");
-      setDepartments(data);
-    } catch (err) {
-      console.error("Failed to fetch departments:", err);
-    }
-  };
+  useEffect(() => {
+    let ignore = false;
+
+    apiRequest("/admin/organizers")
+      .then((data) => {
+        if (!ignore) setOrganizers(data);
+      })
+      .catch((err) => console.error("Failed to fetch organizers:", err))
+      .finally(() => {
+        if (!ignore) setIsLoading(false);
+      });
+
+    apiRequest("/departments")
+      .then((data) => {
+        if (!ignore) setDepartments(data);
+      })
+      .catch((err) => console.error("Failed to fetch departments:", err));
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const handleChange = (e) => {
     setForm({
@@ -58,10 +68,10 @@ function ManageOrganizers() {
         body: JSON.stringify(form)
       });
 
-      alert("Organizer added successfully!");
+      alert("Organizer account provisioned successfully!");
       setForm({ name: "", email: "", department_id: "", password: "" });
       setShowForm(false);
-      fetchOrganizers(); // Refresh list
+      fetchOrganizers();
     } catch (err) {
       alert(err.message || "Failed to add organizer.");
     }
@@ -74,13 +84,13 @@ function ManageOrganizers() {
         body: JSON.stringify({ is_active: !currentStatus })
       });
       fetchOrganizers();
-    } catch (err) {
-      alert("Failed to update status");
+    } catch {
+      alert("Failed to update account status.");
     }
   };
 
   const deleteOrganizer = async (id) => {
-    const confirmed = window.confirm("Are you sure you want to delete this organizer?");
+    const confirmed = window.confirm("Are you sure you want to remove this organizer account?");
     if (!confirmed) return;
 
     try {
@@ -94,97 +104,183 @@ function ManageOrganizers() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 px-6 py-10">
-      <div className="mx-auto max-w-7xl">
-
-        <button onClick={() => navigate("/admin")} className="mb-6 text-sm font-semibold text-gray-600 hover:text-black">
-          ← Back to Dashboard
-        </button>
-
-        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-          <div>
-            <p className="text-sm font-semibold text-gray-500">ADMIN</p>
-            <h1 className="mt-1 text-4xl font-bold">Manage Organizers</h1>
-            <p className="mt-2 text-gray-600">Manage organizer accounts and access.</p>
-          </div>
-
-          <button onClick={() => setShowForm(!showForm)} className="rounded-lg bg-black px-5 py-3 font-semibold text-white hover:bg-gray-800">
-            {showForm ? "Cancel" : "+ Add Organizer"}
+    <div className="space-y-6 pb-12">
+      {/* PAGE HEADER */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-slate-200">
+        <div>
+          <button 
+            type="button"
+            onClick={() => navigate("/dashboard/admin")} 
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors mb-2 cursor-pointer"
+          >
+            <ArrowLeft size={13} />
+            <span>Back to Dashboard</span>
           </button>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
+            Organizer Accounts
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Provision faculty accounts and manage departmental permissions.
+          </p>
         </div>
 
-        {/* Add Organizer Form */}
-        {showForm && (
-          <div className="mt-8 rounded-xl border bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-bold">Add New Organizer</h2>
-            <form onSubmit={handleAddOrganizer} className="mt-5 grid gap-5 md:grid-cols-2">
-              <input name="name" value={form.name} onChange={handleChange} required placeholder="Full Name" className="rounded-lg border px-4 py-3" />
-              <input type="email" name="email" value={form.email} onChange={handleChange} required placeholder="Institutional Email" className="rounded-lg border px-4 py-3" />
-              
-              <select name="department_id" value={form.department_id} onChange={handleChange} required className="rounded-lg border px-4 py-3">
+        <button 
+          type="button"
+          onClick={() => setShowForm(!showForm)} 
+          className="inline-flex items-center justify-center gap-2 bg-[#102a43] text-white px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold hover:bg-[#0a1c2e] transition-colors shadow-xs w-full sm:w-auto cursor-pointer"
+        >
+          {showForm ? "Close Form" : (
+            <>
+              <UserPlus size={16} />
+              <span>Add Organizer</span>
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* ADD ORGANIZER DRAWER / FORM */}
+      {showForm && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <h2 className="text-base font-bold text-slate-900">Provision New Organizer</h2>
+            <span className="text-xs text-slate-400">Institutional Faculty Only</span>
+          </div>
+
+          <form onSubmit={handleAddOrganizer} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-700">Full Name *</label>
+              <input 
+                name="name" 
+                value={form.name} 
+                onChange={handleChange} 
+                required 
+                placeholder="Prof. Maria Santos" 
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#102a43]" 
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-700">School Email *</label>
+              <input 
+                type="email" 
+                name="email" 
+                value={form.email} 
+                onChange={handleChange} 
+                required 
+                placeholder="msantos@umindanao.edu.ph" 
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#102a43]" 
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-700">Department *</label>
+              <select 
+                name="department_id" 
+                value={form.department_id} 
+                onChange={handleChange} 
+                required 
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#102a43] cursor-pointer"
+              >
                 <option value="" disabled>Select Department</option>
                 {departments.map(d => (
                   <option key={d.id} value={d.id}>{d.name}</option>
                 ))}
               </select>
+            </div>
 
-              <input type="password" name="password" value={form.password} onChange={handleChange} placeholder="Password (Optional)" className="rounded-lg border px-4 py-3" />
+            <div className="space-y-1">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-700">Initial Password</label>
+              <input 
+                type="password" 
+                name="password" 
+                value={form.password} 
+                onChange={handleChange} 
+                placeholder="Defaults to organizer123" 
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#102a43]" 
+              />
+            </div>
 
-              <button type="submit" className="rounded-lg bg-black px-5 py-3 font-semibold text-white hover:bg-gray-800 md:col-span-2">
-                Create Organizer
+            <div className="sm:col-span-2 pt-2 flex justify-end">
+              <button 
+                type="submit" 
+                className="px-6 py-2.5 bg-[#f97316] hover:bg-[#ea580c] text-white text-xs sm:text-sm font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
+              >
+                Create Account
               </button>
-            </form>
-          </div>
-        )}
+            </div>
+          </form>
+        </div>
+      )}
 
-        {/* Organizer Table */}
-        <div className="mt-8 overflow-x-auto rounded-xl border bg-white shadow-sm">
-          {isLoading ? (
-             <div className="p-8 text-center text-gray-500">Loading organizers...</div>
-          ) : (
-            <table className="w-full min-w-[800px]">
-              <thead className="border-b bg-gray-50">
+      {/* ORGANIZERS ROSTER (Responsive Card Grid on Mobile, Clean Table on Desktop) */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        {isLoading ? (
+          <div className="p-12 text-center text-slate-400 text-xs">Loading organizer accounts...</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-slate-600">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 uppercase font-semibold">
                 <tr>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Organizer</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Email</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Department</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Status</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold">Actions</th>
+                  <th className="py-3.5 px-4">Faculty Member</th>
+                  <th className="py-3.5 px-4">Email</th>
+                  <th className="py-3.5 px-4">Department</th>
+                  <th className="py-3.5 px-4">Status</th>
+                  <th className="py-3.5 px-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-100">
                 {organizers.map((organizer) => (
-                  <tr key={organizer.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 font-semibold text-gray-800">{organizer.name}</td>
-                    <td className="px-6 py-4 text-gray-600">{organizer.email}</td>
-                    <td className="px-6 py-4 text-gray-600">{organizer.department}</td>
-                    <td className="px-6 py-4">
-                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${organizer.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}`}>
-                        {organizer.is_active ? "Active" : "Inactive"}
+                  <tr key={organizer.id} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="py-3 px-4">
+                      <strong className="text-slate-900 block font-semibold">{organizer.name}</strong>
+                    </td>
+                    <td className="py-3 px-4 font-mono text-slate-500">
+                      {organizer.email}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className="font-medium text-slate-700">{organizer.department}</span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                        organizer.is_active ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-500"
+                      }`}>
+                        {organizer.is_active ? "Active" : "Disabled"}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex gap-2">
-                        <button onClick={() => toggleStatus(organizer.id, organizer.is_active)} className="rounded-lg border px-3 py-2 text-xs font-semibold hover:bg-gray-50">
+                    <td className="py-3 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button 
+                          type="button"
+                          onClick={() => toggleStatus(organizer.id, organizer.is_active)} 
+                          className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 text-[11px] font-semibold transition-colors cursor-pointer"
+                        >
                           {organizer.is_active ? "Deactivate" : "Activate"}
                         </button>
-                        <button onClick={() => deleteOrganizer(organizer.id)} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700">
-                          Delete
+                        <button 
+                          type="button"
+                          onClick={() => deleteOrganizer(organizer.id)} 
+                          className="p-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                          title="Delete Account"
+                        >
+                          <Trash2 size={14} />
                         </button>
                       </div>
                     </td>
                   </tr>
                 ))}
                 {organizers.length === 0 && (
-                  <tr><td colSpan="5" className="p-8 text-center text-gray-500">No organizers found.</td></tr>
+                  <tr>
+                    <td colSpan="5" className="p-8 text-center text-slate-400">
+                      No organizer accounts registered yet.
+                    </td>
+                  </tr>
                 )}
               </tbody>
             </table>
-          )}
-        </div>
-
+          </div>
+        )}
       </div>
-    </main>
+    </div>
   );
 }
 
