@@ -1,6 +1,6 @@
 import { ArrowRight, QrCode, ShieldCheck, Ticket, Activity } from "lucide-react";
 import { Link } from "react-router-dom";
-import AnimatedGridBackground from "../components/AnimatedGridBackground";
+import ParticleBackground from "../components/ParticleBackground";
 
 function Landing() {
   return (
@@ -9,15 +9,14 @@ function Landing() {
       {/* 1. MOBILE-FIRST HERO SECTION */}
       <section className="relative pt-12 pb-16 md:pt-28 md:pb-24 overflow-hidden px-4 sm:px-6 lg:px-12 flex flex-col items-center text-center">
 
-        {/* Lightweight Static Grid Background */}
-        <AnimatedGridBackground />
+        <ParticleBackground />
 
         {/* Linear White Fade Mask */}
         <div className="absolute top-0 inset-x-0 h-[450px] md:h-[600px] bg-gradient-to-b from-[#FBFBFA] via-[#FBFBFA]/90 to-transparent z-0 pointer-events-none w-full" />
 
         <div className="relative z-10 max-w-4xl mx-auto flex flex-col items-center w-full">
           
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white border border-[#EAEAEA] shadow-xs mb-5 text-[11px] sm:text-xs font-bold uppercase tracking-wider text-[#102a43]">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white border border-[#EAEAEA] shadow-xs mb-3 text-[11px] sm:text-xs font-bold uppercase tracking-wider text-[#102a43]">
             <span className="w-2 h-2 rounded-full bg-[#f97316]" />
             UM Tagum Event Portal
           </div>
@@ -50,7 +49,7 @@ function Landing() {
         </div>
 
         {/* 2. OPTIMIZED HERO TICKET CARD */}
-        <div className="relative z-10 w-full max-w-sm mx-auto mt-12 md:mt-16">
+        <div className="relative z-10 w-full max-w-sm mx-auto mt-20 md:mt-16">
           <div className="w-full bg-white rounded-3xl shadow-[0_20px_40px_-15px_rgba(16,42,67,0.12)] border border-[#EAEAEA] flex flex-col overflow-hidden">
             <div className="bg-[#102a43] p-5 text-white text-left">
               <div className="flex items-center justify-between mb-2">
@@ -98,10 +97,10 @@ function Landing() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {/* Feature 1 */}
             <div className="bg-[#FBFBFA] border border-[#EAEAEA] rounded-2xl p-6 flex flex-col h-full hover:border-[#102a43]/20 transition-colors">
-              <div className="w-10 h-10 bg-white rounded-xl shadow-xs border border-[#EAEAEA] flex items-center justify-center text-[#f97316] mb-4">
+              <div className="w-15 h-15 bg-white rounded-xl shadow-xs border border-[#EAEAEA] flex items-center justify-center text-[#f97316] mb-4">
                 <QrCode size={20} />
               </div>
               <h3 className="text-base font-bold text-[#111111] mb-2">Instant QR Passes</h3>
@@ -112,23 +111,12 @@ function Landing() {
 
             {/* Feature 2 */}
             <div className="bg-[#102a43] rounded-2xl p-6 flex flex-col h-full text-white">
-              <div className="w-10 h-10 bg-white/10 rounded-xl border border-white/10 flex items-center justify-center text-white mb-4">
+              <div className="w-15 h-15 bg-white/10 rounded-xl border border-white/10 flex items-center justify-center text-white mb-4">
                 <Activity size={20} />
               </div>
               <h3 className="text-base font-bold mb-2">Real-time Check-in Station</h3>
               <p className="text-xs sm:text-sm text-white/70 leading-relaxed flex-1">
                 Organizers scan tickets with rapid 14ms verification latency and instant double check-in rejection.
-              </p>
-            </div>
-
-            {/* Feature 3 */}
-            <div className="bg-[#FBFBFA] border border-[#EAEAEA] rounded-2xl p-6 flex flex-col h-full hover:border-[#102a43]/20 transition-colors">
-              <div className="w-10 h-10 bg-white rounded-xl shadow-xs border border-[#EAEAEA] flex items-center justify-center text-[#f97316] mb-4">
-                <ShieldCheck size={20} />
-              </div>
-              <h3 className="text-base font-bold text-[#111111] mb-2">Offline PWA Pass Storage</h3>
-              <p className="text-xs sm:text-sm text-[#787774] leading-relaxed flex-1">
-                Access your generated passes anytime, anywhere — even if gym Wi-Fi or cellular mobile data drops.
               </p>
             </div>
           </div>

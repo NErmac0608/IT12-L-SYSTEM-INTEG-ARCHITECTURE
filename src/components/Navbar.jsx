@@ -19,13 +19,10 @@ function Navbar() {
   return (
     <div className="sticky top-0 inset-x-0 z-40 flex justify-center py-2.5 px-3 md:pt-4 md:px-4 bg-[#FBFBFA]/90 backdrop-blur-md border-b border-slate-200/60 md:border-b-0">
       {/* Sleek, Hardware-Accelerated Responsive Navbar */}
-      <header 
-        className="w-full max-w-4xl bg-white/90 md:border md:border-[#EAEAEA] rounded-2xl md:rounded-full h-12 md:h-14 flex items-center justify-between px-4 md:px-6 shadow-sm md:shadow-[0_8px_32px_rgba(16,42,67,0.06)]"
-      >
-        
+      <header className="w-full max-w-4xl bg-white/90 md:border md:border-[#EAEAEA] rounded-2xl md:rounded-full h-12 md:h-14 flex items-center justify-between px-4 md:px-6 shadow-sm md:shadow-[0_8px_32px_rgba(16,42,67,0.06)]">
         {/* LOGO */}
-        <Link 
-          to="/" 
+        <Link
+          to="/"
           className="flex items-center gap-3 group outline-none focus-visible:ring-2 focus-visible:ring-[#102a43] rounded-full px-2 py-1"
         >
           <div className="w-8 h-8 rounded-full bg-[#FBFBFA] border border-[#EAEAEA] flex items-center justify-center shadow-sm overflow-hidden group-hover:border-[#f97316]/50 transition-colors">
@@ -35,19 +32,18 @@ function Navbar() {
               className="w-6 h-6 object-contain group-hover:scale-110 transition-transform duration-300"
             />
           </div>
-          <span className="font-serif italic text-[22px] tracking-normal font-medium text-[#102a43] group-hover:text-[#f97316] transition-colors">
+          <span className="varsity-wordmark group-hover:text-[#f97316] transition-colors">
             UM-TAP
           </span>
         </Link>
 
         {/* NAVIGATION & ACTIONS */}
         <div className="flex items-center gap-2 sm:gap-6">
-          
-          <Link 
-            to="/events" 
+          <Link
+            to="/events"
             className="text-[14px] font-semibold text-[#787774] hover:text-[#102a43] flex items-center gap-2 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[#102a43] rounded-full px-3 py-2"
           >
-            <CalendarDays size={16} strokeWidth={2.5} /> 
+            <CalendarDays size={16} strokeWidth={2.5} />
             <span className="hidden sm:inline">Events</span>
           </Link>
 
@@ -82,7 +78,6 @@ function Navbar() {
               <LogIn size={15} strokeWidth={2.5} />
             </Link>
           )}
-
         </div>
       </header>
     </div>

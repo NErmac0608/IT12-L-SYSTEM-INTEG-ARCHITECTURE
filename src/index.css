@@ -2,6 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+@import "@fontsource/graduate";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -48,6 +49,17 @@ body {
   font-weight: 700;
   letter-spacing: 0.01em;
   line-height: 1;
+}
+
+.varsity-wordmark {
+  color: #102a43;
+  font-family: "Graduate", Rockwell, Georgia, serif;
+  font-size: 1.4rem;
+  font-weight: 900;
+  font-synthesis: weight;
+  letter-spacing: 0.025em;
+  line-height: 1;
+  -webkit-text-stroke: 1px currentColor;
 }
 
 .brand-letter {
