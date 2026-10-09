@@ -15,6 +15,7 @@ import {
   Upload
 } from "lucide-react";
 import { apiRequest } from "../services/api";
+import { useEvents } from "../context/EventContext";
 
 // Web Audio API Sound Synthesizer (Zero external audio asset dependency)
 function playAudioFeedback(type, soundEnabled = true) {
@@ -70,6 +71,7 @@ function playAudioFeedback(type, soundEnabled = true) {
 }
 
 export default function QRScanner({ eventId = null, eventTitle = "" }) {
+  const { refreshRegistrations } = useEvents();
   const [isScanning, setIsScanning] = useState(false);
   const [cameraDevices, setCameraDevices] = useState([]);
   const [selectedCameraId, setSelectedCameraId] = useState("");
@@ -137,6 +139,9 @@ export default function QRScanner({ eventId = null, eventTitle = "" }) {
         };
         setScanResult(scanData);
         setRecentScans(prev => [scanData, ...prev.slice(0, 4)]);
+        if (typeof refreshRegistrations === "function") {
+          refreshRegistrations();
+        }
       }
     } catch (err) {
       const errMsg = err.message || "Failed to process scan.";

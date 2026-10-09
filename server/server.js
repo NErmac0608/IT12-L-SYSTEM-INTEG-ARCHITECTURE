@@ -381,12 +381,8 @@ app.get('/api/attendance', authenticateToken, async (req, res) => {
             // Students only see their own tickets and QR tokens
             query += ' WHERE student_id_record = $1 ORDER BY registered_at DESC;';
             params.push(req.user.id);
-        } else if (req.user.role === 'organizer') {
-            // Organizers only see registrations for events they manage
-            query += ' WHERE event_id IN (SELECT id FROM events WHERE organizer_id = $1) ORDER BY registered_at DESC;';
-            params.push(req.user.id);
         } else {
-            // Admins see all records
+            // Organizers and admins see all attendance records for monitoring
             query += ' ORDER BY registered_at DESC;';
         }
 
@@ -425,34 +421,44 @@ app.post('/api/attendance/scan', authenticateToken, requireOrganizer, async (req
             return res.status(400).json({ success: false, message: 'Invalid or missing QR token format.' });
         }
 
-        // 1. Resolve event if not explicitly provided
-        if (!event_id) {
-            const regLookup = await db.query('SELECT event_id FROM registrations WHERE qr_token = $1;', [qr_token]);
-            if (regLookup.rows.length === 0) {
-                return res.status(404).json({ success: false, message: 'Invalid QR code or registration not found.' });
-            }
-            event_id = regLookup.rows[0].event_id;
+        // 1. Resolve registration and associated event from the scanned QR token
+        const regLookup = await db.query(
+            `SELECT r.*, e.title as event_title, e.organizer_id, e.status as event_status 
+             FROM registrations r 
+             JOIN events e ON r.event_id = e.id 
+             WHERE r.qr_token = $1;`,
+            [qr_token]
+        );
+
+        if (regLookup.rows.length === 0) {
+            return res.status(404).json({ success: false, message: 'Invalid QR code or registration not found.' });
         }
 
-        // 2. Critical 7: Verify event existence, status, and organizer authorization
-        const eventCheck = await db.query('SELECT id, title, organizer_id, status FROM events WHERE id = $1;', [event_id]);
-        if (eventCheck.rows.length === 0) {
-            return res.status(404).json({ success: false, message: 'Event not found.' });
+        const registration = regLookup.rows[0];
+
+        // 2. If an event was explicitly selected in the scanner, verify ticket target
+        if (event_id && String(event_id) !== String(registration.event_id)) {
+            const targetEventCheck = await db.query('SELECT title FROM events WHERE id = $1;', [event_id]);
+            const targetTitle = targetEventCheck.rows[0]?.title || `Event #${event_id}`;
+            return res.status(400).json({ 
+                success: false, 
+                message: `This ticket is registered for "${registration.event_title}", not the selected event ("${targetTitle}").` 
+            });
         }
 
-        const event = eventCheck.rows[0];
+        event_id = registration.event_id;
 
-        // Authorization check: Only event owner or admin can scan attendance
-        if (req.user.role !== 'admin' && String(event.organizer_id) !== String(req.user.id)) {
+        // 3. Authorization check: Any authenticated organizer or admin can scan attendance
+        if (req.user.role !== 'admin' && req.user.role !== 'organizer') {
             return res.status(403).json({ success: false, message: 'You are not authorized to scan attendance for this event.' });
         }
 
-        // Event status check: Cannot scan attendance for cancelled or closed events
-        if (event.status === 'cancelled' || event.status === 'closed') {
-            return res.status(400).json({ success: false, message: `Cannot scan attendance. Event is currently ${event.status}.` });
+        // 4. Event status check: Cannot scan attendance for cancelled or closed events
+        if (registration.event_status === 'cancelled' || registration.event_status === 'closed') {
+            return res.status(400).json({ success: false, message: `Cannot scan attendance. Event is currently ${registration.event_status}.` });
         }
 
-        // 3. Atomic check-in execution via stored procedure
+        // 5. Atomic check-in execution via stored procedure
         const checkInResult = await db.query('SELECT * FROM check_in_student($1, $2);', [event_id, qr_token]);
         const checkIn = checkInResult.rows[0];
 
@@ -477,7 +483,7 @@ app.post('/api/attendance/scan', authenticateToken, requireOrganizer, async (req
                 registrationId: checkIn.registration_id,
                 studentName: checkIn.student_name,
                 checkedInAt: checkIn.checked_in_at,
-                eventTitle: event.title
+                eventTitle: registration.event_title
             }
         });
     } catch (err) {
@@ -498,7 +504,7 @@ app.get('/api/events/:id/export', authenticateToken, requireOrganizer, async (re
         }
 
         const event = eventResult.rows[0];
-        if (req.user.role !== 'admin' && String(event.organizer_id) !== String(req.user.id)) {
+        if (req.user.role !== 'admin' && req.user.role !== 'organizer') {
             return res.status(403).json({ success: false, message: 'You are not authorized to export attendance for this event.' });
         }
 

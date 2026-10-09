@@ -14,17 +14,19 @@ export default function ScannerWorkspace() {
     return (events || []).filter(e => e.status === "open" || e.status === "ongoing");
   }, [events]);
 
-  const [selectedEventId, setSelectedEventId] = useState("");
+  const [selectedEventId, setSelectedEventId] = useState("auto");
 
-  // Derive current effective event ID: selected or fallback to first active event
+  // Derive current effective event ID: empty string when auto-detecting, otherwise selected event ID
   const currentEventId = useMemo(() => {
+    if (selectedEventId === "auto") return "";
     if (selectedEventId && activeEvents.some(e => String(e.id) === String(selectedEventId))) {
       return selectedEventId;
     }
-    return activeEvents.length > 0 ? String(activeEvents[0].id) : "";
+    return "";
   }, [activeEvents, selectedEventId]);
 
   const selectedEvent = useMemo(() => {
+    if (!currentEventId) return null;
     return activeEvents.find(e => String(e.id) === String(currentEventId)) || null;
   }, [activeEvents, currentEventId]);
 
@@ -73,31 +75,27 @@ export default function ScannerWorkspace() {
               Active Event Verification Target
             </label>
             <span className="text-xs text-slate-400">
-              Only QR passes registered for this event will be accepted.
+              {selectedEventId === "auto"
+                ? "⚡ Auto-Detect mode: Automatically identifies event and student pass upon scanning."
+                : "Strict mode: Only QR passes registered for this event will be accepted."}
             </span>
           </div>
         </div>
 
         <div className="w-full md:w-80">
-          {activeEvents.length > 0 ? (
-            <select
-              id="event-select"
-              value={currentEventId}
-              onChange={(e) => setSelectedEventId(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100/80 border border-slate-300 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#102a43] transition-all cursor-pointer"
-            >
-              {activeEvents.map((event) => (
-                <option key={event.id} value={event.id}>
-                  {event.title} ({formatEventDate(event.event_date || event.date)})
-                </option>
-              ))}
-            </select>
-          ) : (
-            <div className="flex items-center space-x-2 text-xs text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
-              <Layers size={16} />
-              <span>No open events available. (All events are either closed or cancelled)</span>
-            </div>
-          )}
+          <select
+            id="event-select"
+            value={selectedEventId}
+            onChange={(e) => setSelectedEventId(e.target.value)}
+            className="w-full px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100/80 border border-slate-300 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#102a43] transition-all cursor-pointer"
+          >
+            <option value="auto">⚡ Auto-Detect Event (All Active Events)</option>
+            {activeEvents.map((event) => (
+              <option key={event.id} value={event.id}>
+                {event.title} ({formatEventDate(event.event_date || event.date)})
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 

@@ -43,14 +43,16 @@ function Navbar() {
 
   // Determine if we are on a dashboard to show specific quick links
   const isDashboard = location.pathname.includes("/dashboard");
-  const userName = user.name || user.email || "Account";
+  const userName = user ? (user.name || user.email || "Account") : "";
   const userInitials = userName
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
+    ? userName
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0])
+        .join("")
+        .toUpperCase()
+    : "";
 
   return (
     <div className="sticky top-0 inset-x-0 z-40 flex justify-center py-2.5 px-3 md:pt-4 md:px-4 bg-[#FBFBFA]/90 backdrop-blur-md border-b border-slate-200/60 md:border-b-0">

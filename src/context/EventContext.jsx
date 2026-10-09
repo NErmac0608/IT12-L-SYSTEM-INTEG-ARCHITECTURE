@@ -45,37 +45,18 @@ export function EventProvider({ children }) {
     }
   }, []);
 
+  // Real-time synchronization: initial fetch and 3-second live sync polling
   useEffect(() => {
-    let ignore = false;
-    
-    apiRequest("/events")
-      .then((data) => {
-        if (!ignore) {
-          setEvents(data);
-          localStorage.setItem("um_tap_cached_events", JSON.stringify(data));
-        }
-      })
-      .catch((error) => {
-        console.warn("Could not fetch latest events from network, keeping cached dataset:", error);
-      });
-
+    fetchEvents();
     if (user) {
-      apiRequest("/attendance")
-        .then((data) => {
-          if (!ignore) {
-            setRegistrations(data);
-            localStorage.setItem("um_tap_cached_registrations", JSON.stringify(data));
-          }
-        })
-        .catch((error) => {
-          console.warn("Could not fetch latest registrations from network, keeping cached passes:", error);
-        });
+      fetchRegistrations();
+      const interval = setInterval(() => {
+        fetchRegistrations();
+        fetchEvents();
+      }, 3000);
+      return () => clearInterval(interval);
     }
-
-    return () => {
-      ignore = true;
-    };
-  }, [user]);
+  }, [user, fetchEvents, fetchRegistrations]);
 
   const createEvent = async (event) => {
     try {

@@ -10,7 +10,13 @@ function MyQRCode() {
   const { events, getRegistrations } = useEvents(); 
   const registeredEvents = getRegistrations(user.id).map((reg) => {
     const event = events.find(e => e.id === reg.event_id || e.id === reg.eventId);
-    return event ? { ...event, qr_token: reg.qr_token } : null;
+    return event ? { 
+      ...event, 
+      registration_id: reg.id || reg.registration_id,
+      qr_token: reg.qr_token,
+      attendance_status: reg.status,
+      checked_in_at: reg.checked_in_at
+    } : null;
   }).filter(Boolean);
 
   return (
@@ -37,9 +43,20 @@ function MyQRCode() {
           >
             {/* TICKET TOP: EVENT DETAILS */}
             <div className="bg-[#102a43] text-white p-5 relative">
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-white/10 rounded-full text-[10px] font-bold uppercase tracking-wider mb-3 border border-white/20 text-[#f97316]">
-                <Ticket size={12} /> STUDENT PASS
-              </span>
+              <div className="flex items-center justify-between mb-3">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-white/10 rounded-full text-[10px] font-bold uppercase tracking-wider border border-white/20 text-[#f97316]">
+                  <Ticket size={12} /> STUDENT PASS
+                </span>
+                {event.attendance_status === "attended" ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                    ✓ ATTENDED
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-400/30 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                    READY TO SCAN
+                  </span>
+                )}
+              </div>
               <h3 className="text-lg font-bold leading-snug mb-3 text-white">{event.title}</h3>
               
               <div className="grid grid-cols-2 gap-2 text-xs font-mono text-white/80">
@@ -88,9 +105,22 @@ function MyQRCode() {
                       includeMargin={false}
                     />
                   </div>
-                  <p className="text-[11px] font-mono text-[#787774] tracking-widest uppercase text-center w-full truncate">
-                    TOKEN: {event.qr_token.split('-')[0]}
-                  </p>
+                  {event.attendance_status === "attended" ? (
+                    <div className="w-full p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-center">
+                      <p className="text-xs font-bold text-emerald-800 flex items-center justify-center gap-1">
+                        <span>✓ Verified & Checked In</span>
+                      </p>
+                      {event.checked_in_at && (
+                        <p className="text-[10px] text-emerald-600 mt-0.5 font-mono">
+                          Time: {new Date(event.checked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] font-mono text-[#787774] tracking-widest uppercase text-center w-full truncate">
+                      TOKEN: {event.qr_token.split('-')[0]}
+                    </p>
+                  )}
                 </>
               ) : (
                 <div className="h-[180px] w-[180px] flex items-center justify-center border-2 border-dashed border-[#EAEAEA] rounded-xl mb-3">
