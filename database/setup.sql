@@ -498,7 +498,7 @@ VALUES
     (
         SELECT id
         FROM events
-        WHERE title = 'BSIT General Assembly'
+        WHERE title = 'DCE General Assembly'
     ),
 
     (

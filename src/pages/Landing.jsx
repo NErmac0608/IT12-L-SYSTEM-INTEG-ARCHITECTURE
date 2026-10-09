@@ -1,4 +1,4 @@
-import { ArrowRight, QrCode, ShieldCheck, Ticket, Activity } from "lucide-react";
+import { ArrowRight, QrCode, Ticket, Activity } from "lucide-react";
 import { Link } from "react-router-dom";
 import ParticleBackground from "../components/ParticleBackground";
 

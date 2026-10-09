@@ -1,5 +1,4 @@
-import { useState, useEffect } from "react";
-import { QrCode, CalendarDays, Clock3, MapPin, Ticket, WifiOff, Wifi } from "lucide-react";
+import { QrCode, CalendarDays, Clock3, MapPin, Ticket } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useAuth } from "../../context/AuthContext";
 import { useEvents } from "../../context/EventContext";
@@ -9,19 +8,6 @@ import { formatEventDate } from "../../lib/utils";
 function MyQRCode() { 
   const { user } = useAuth(); 
   const { events, getRegistrations } = useEvents(); 
-  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
-
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, []);
-  
   const registeredEvents = getRegistrations(user.id).map((reg) => {
     const event = events.find(e => e.id === reg.event_id || e.id === reg.eventId);
     return event ? { ...event, qr_token: reg.qr_token } : null;
@@ -41,20 +27,6 @@ function MyQRCode() {
           Keep tickets ready for check-in verification.
         </p>
 
-        {/* Network & Offline Ready Status Indicator */}
-        <div className="mt-2.5 flex items-center justify-center gap-2">
-          {isOnline ? (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              <Wifi size={11} />
-              <span>Offline Pass Cache Synced</span>
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-              <WifiOff size={11} />
-              <span>Offline Mode Active - Saved Passes Available</span>
-            </span>
-          )}
-        </div>
       </div>
       
       <div className="w-full max-w-sm flex flex-col gap-6">

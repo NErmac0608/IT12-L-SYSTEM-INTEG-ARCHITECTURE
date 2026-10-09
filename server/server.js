@@ -211,7 +211,7 @@ app.get('/api/events', async (req, res) => {
 app.get('/api/events/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const result = await db.query('SELECT * FROM event_list_view WHERE event_id = $1;', [id]);
+        const result = await db.query('SELECT * FROM event_list_view WHERE id = $1;', [id]);
         
         if (result.rows.length === 0) {
             return res.status(404).json({ success: false, message: 'Event not found.' });
