@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Html5Qrcode } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 import { 
   Camera, 
   FlipHorizontal, 
@@ -12,7 +12,9 @@ import {
   Clock,
   UserCheck,
   ShieldAlert,
-  Upload
+  Upload,
+  Keyboard,
+  ArrowRight
 } from "lucide-react";
 import { apiRequest } from "../services/api";
 import { useEvents } from "../context/EventContext";
@@ -27,7 +29,7 @@ function playAudioFeedback(type, soundEnabled = true) {
     const now = ctx.currentTime;
 
     if (type === "success") {
-      // High, crisp, pleasant dual-tone chime (880Hz -> 1760Hz)
+      // Crisp double-tone chime (880Hz -> 1760Hz)
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = "sine";
@@ -70,7 +72,22 @@ function playAudioFeedback(type, soundEnabled = true) {
   }
 }
 
-export default function QRScanner({ eventId = null, eventTitle = "" }) {
+// Robust token extractor: pulls UUID from raw text, JSON payloads, or URL/prefix strings
+function extractToken(raw) {
+  if (!raw) return "";
+  const str = String(raw).trim();
+  const uuidMatch = str.match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
+  if (uuidMatch) return uuidMatch[0].toLowerCase();
+  try {
+    const parsed = JSON.parse(str);
+    if (parsed.qr_token) return String(parsed.qr_token).trim();
+    if (parsed.token) return String(parsed.token).trim();
+    if (parsed.qr_token_string) return String(parsed.qr_token_string).trim();
+  } catch {}
+  return str.replace(/^["']|["']$/g, '').trim();
+}
+
+export default function QRScanner({ eventId = null, eventTitle = "", onResetFilter = null }) {
   const { refreshRegistrations } = useEvents();
   const [isScanning, setIsScanning] = useState(false);
   const [cameraDevices, setCameraDevices] = useState([]);
@@ -81,6 +98,11 @@ export default function QRScanner({ eventId = null, eventTitle = "" }) {
   const [scanResult, setScanResult] = useState(null);
   const [recentScans, setRecentScans] = useState([]);
   
+  // Manual token input state (failsafe for camera/webcam issues)
+  const [manualToken, setManualToken] = useState("");
+  const [isManualSubmitting, setIsManualSubmitting] = useState(false);
+  const [showManualInput, setShowManualInput] = useState(false);
+
   const scannerRef = useRef(null);
   const fileInputRef = useRef(null);
   const isProcessingRef = useRef(false);
@@ -102,21 +124,23 @@ export default function QRScanner({ eventId = null, eventTitle = "" }) {
   }, []);
 
   // Handle incoming decoded QR text
-  const handleDecodedText = useCallback(async (decodedText) => {
+  const handleDecodedText = useCallback(async (rawText) => {
     const now = Date.now();
+    const cleanToken = extractToken(rawText);
+
     // Scan Debounce & Throttling: Ignore identical scans within 2 seconds or while in-flight
     if (isProcessingRef.current) return;
-    if (decodedText === lastScannedTextRef.current && (now - lastScannedTimeRef.current) < 2000) {
+    if (cleanToken === lastScannedTextRef.current && (now - lastScannedTimeRef.current) < 2000) {
       return;
     }
 
     isProcessingRef.current = true;
-    lastScannedTextRef.current = decodedText;
+    lastScannedTextRef.current = cleanToken;
     lastScannedTimeRef.current = now;
 
     try {
       const payload = {
-        qr_token_string: decodedText.trim(),
+        qr_token_string: cleanToken,
       };
       if (eventId) {
         payload.event_id = eventId;
@@ -151,8 +175,8 @@ export default function QRScanner({ eventId = null, eventTitle = "" }) {
           type: "warning",
           title: "Already Checked In",
           message: "This QR pass has already been used for attendance.",
-          studentName: "Verified Attendee",
-          timestamp: new Date().toISOString(),
+          studentName: err.details?.studentName || "Verified Attendee",
+          timestamp: err.details?.checkedInAt || new Date().toISOString(),
           eventTitle: eventTitle,
         };
         setScanResult(scanData);
@@ -165,6 +189,7 @@ export default function QRScanner({ eventId = null, eventTitle = "" }) {
           message: errMsg,
           timestamp: new Date().toISOString(),
           eventTitle: eventTitle,
+          isMismatch: errMsg.includes("registered for"),
         });
       }
     } finally {
@@ -173,7 +198,17 @@ export default function QRScanner({ eventId = null, eventTitle = "" }) {
         isProcessingRef.current = false;
       }, 1500);
     }
-  }, [eventId, eventTitle, soundEnabled]);
+  }, [eventId, eventTitle, soundEnabled, refreshRegistrations]);
+
+  // Handle manual token submission
+  const handleManualSubmit = async (e) => {
+    e.preventDefault();
+    if (!manualToken.trim()) return;
+    setIsManualSubmitting(true);
+    await handleDecodedText(manualToken.trim());
+    setIsManualSubmitting(false);
+    setManualToken("");
+  };
 
   // Enumerate cameras safely after mounting
   useEffect(() => {
@@ -201,20 +236,31 @@ export default function QRScanner({ eventId = null, eventTitle = "" }) {
     };
   }, []);
 
-  // Start or restart the camera with multiple progressive fallbacks
+  // Start or restart the camera with dynamic viewfinder and GPU detector fallback
   const startCamera = useCallback(async (camIdOrFacing = null) => {
     setCameraError(null);
     await stopCamera();
 
     try {
       if (!scannerRef.current) {
-        scannerRef.current = new Html5Qrcode("scanner-reader-viewport");
+        scannerRef.current = new Html5Qrcode("scanner-reader-viewport", {
+          verbose: false,
+          formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE]
+        });
       }
 
+      // Responsive, adaptive scanning box function
       const config = {
-        fps: 15,
-        qrbox: { width: 260, height: 260 },
+        fps: 20,
+        qrbox: (viewfinderWidth, viewfinderHeight) => {
+          const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+          const edgeSize = Math.max(Math.floor(minEdge * 0.75), 180);
+          return { width: edgeSize, height: edgeSize };
+        },
         aspectRatio: 1.0,
+        experimentalFeatures: {
+          useBarCodeDetectorIfSupported: true
+        }
       };
 
       const targetCamera = camIdOrFacing || selectedCameraId;
@@ -267,9 +313,9 @@ export default function QRScanner({ eventId = null, eventTitle = "" }) {
       if (isPermission) {
         setCameraError("Camera permission was denied. Please allow camera access in your browser settings (click the lock/camera icon in your URL bar).");
       } else if (isInUse) {
-        setCameraError("Unable to connect to camera device. Please verify your camera is not in use by another app (e.g., Zoom, Teams, Discord) or browser tab.");
+        setCameraError("Camera device in use by another app or tab. Please close other camera programs and try again.");
       } else {
-        setCameraError(`Camera connection error: ${err.message || "Device unavailable"}. You can also upload a QR code image below.`);
+        setCameraError(`Camera connection note: ${err.message || "Device unavailable"}. You can enter ticket tokens manually below.`);
       }
       setIsScanning(false);
     }
@@ -281,14 +327,22 @@ export default function QRScanner({ eventId = null, eventTitle = "" }) {
     setCameraFacing(nextFacing);
     if (isScanning) {
       await stopCamera();
-      // Restart with new facingMode
       try {
         if (!scannerRef.current) {
           scannerRef.current = new Html5Qrcode("scanner-reader-viewport");
         }
         await scannerRef.current.start(
           { facingMode: nextFacing },
-          { fps: 15, qrbox: { width: 260, height: 260 }, aspectRatio: 1.0 },
+          { 
+            fps: 20, 
+            qrbox: (w, h) => {
+              const min = Math.min(w, h);
+              const sz = Math.max(Math.floor(min * 0.75), 180);
+              return { width: sz, height: sz };
+            },
+            aspectRatio: 1.0,
+            experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+          },
           handleDecodedText,
           () => {}
         );
@@ -298,14 +352,6 @@ export default function QRScanner({ eventId = null, eventTitle = "" }) {
       }
     }
   }, [cameraFacing, isScanning, stopCamera, handleDecodedText]);
-
-  // Switch camera by ID
-  const handleCameraChange = async (newId) => {
-    setSelectedCameraId(newId);
-    if (isScanning) {
-      await startCamera(newId);
-    }
-  };
 
   // Handle image file upload for scanning without camera
   const handleFileUpload = async (e) => {
@@ -323,7 +369,7 @@ export default function QRScanner({ eventId = null, eventTitle = "" }) {
       setScanResult({
         type: "error",
         title: "No QR Code Detected",
-        message: "Could not detect a readable QR code in the uploaded image. Please try a clearer picture.",
+        message: "Could not detect a readable QR code in the image. Ensure the image is crisp and not cropped.",
         timestamp: new Date().toISOString(),
         eventTitle: eventTitle,
       });
@@ -367,7 +413,7 @@ export default function QRScanner({ eventId = null, eventTitle = "" }) {
           <div>
             <p className="text-xs uppercase tracking-widest text-slate-300 font-bold">Live Terminal</p>
             <h3 className="text-lg font-semibold text-white">
-              {eventTitle ? `Scanning: ${eventTitle}` : "Attendance Scanner"}
+              {eventTitle ? `Target: ${eventTitle}` : "⚡ Auto-Detect Event Scanner"}
             </h3>
           </div>
 
@@ -375,7 +421,10 @@ export default function QRScanner({ eventId = null, eventTitle = "" }) {
             {cameraDevices.length > 1 && (
               <select
                 value={selectedCameraId}
-                onChange={(e) => handleCameraChange(e.target.value)}
+                onChange={(e) => {
+                  setSelectedCameraId(e.target.value);
+                  if (isScanning) startCamera(e.target.value);
+                }}
                 className="px-2 py-1.5 rounded-lg bg-white/10 text-white text-xs border border-white/20 focus:outline-none"
               >
                 {cameraDevices.map((d, idx) => (
@@ -410,7 +459,7 @@ export default function QRScanner({ eventId = null, eventTitle = "" }) {
           </div>
         </div>
 
-        {/* HIDDEN FILE INPUT FOR IMAGE SCANNING FALLBACK */}
+        {/* HIDDEN FILE INPUT */}
         <input 
           type="file" 
           ref={fileInputRef} 
@@ -425,7 +474,7 @@ export default function QRScanner({ eventId = null, eventTitle = "" }) {
           {/* HTML5-QRCODE TARGET DIV */}
           <div id="scanner-reader-viewport" className="w-full h-full overflow-hidden" />
 
-          {/* VIEWFINDER OVERLAY BRACKETS (Visible when scanning) */}
+          {/* VIEWFINDER OVERLAY BRACKETS */}
           {isScanning && !scanResult && (
             <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
               <div className="w-64 h-64 relative border-2 border-white/20 rounded-2xl">
@@ -449,7 +498,7 @@ export default function QRScanner({ eventId = null, eventTitle = "" }) {
               </div>
               <p className="font-semibold text-base mb-1">Camera Standby</p>
               <p className="text-xs text-slate-400 mb-5 max-w-xs">
-                Activate the lens or upload a saved ticket QR image.
+                Activate the lens, upload a ticket image, or type ticket code.
               </p>
               <div className="flex flex-col sm:flex-row gap-2 w-full max-w-xs justify-center">
                 <button
@@ -465,7 +514,7 @@ export default function QRScanner({ eventId = null, eventTitle = "" }) {
                   className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-medium text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Upload size={14} />
-                  <span>Scan Image File</span>
+                  <span>Scan Image</span>
                 </button>
               </div>
             </div>
@@ -488,18 +537,18 @@ export default function QRScanner({ eventId = null, eventTitle = "" }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => setShowManualInput(true)}
                   className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs flex items-center space-x-1.5 cursor-pointer"
                 >
-                  <Upload size={13} />
-                  <span>Upload QR Image</span>
+                  <Keyboard size={13} />
+                  <span>Type Code</span>
                 </button>
               </div>
             </div>
           )}
         </div>
 
-        {/* BOTTOM CONTROLS */}
+        {/* BOTTOM CONTROLS & MANUAL OVERRIDE TOGGLE */}
         <div className="flex items-center justify-between pt-2">
           {isScanning ? (
             <button
@@ -512,11 +561,11 @@ export default function QRScanner({ eventId = null, eventTitle = "" }) {
           ) : (
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="text-xs text-slate-300 hover:text-white flex items-center gap-1 cursor-pointer transition-colors"
+              onClick={() => setShowManualInput(s => !s)}
+              className="text-xs text-slate-300 hover:text-white flex items-center gap-1.5 cursor-pointer transition-colors"
             >
-              <Upload size={13} />
-              <span>Or choose image file</span>
+              <Keyboard size={13} />
+              <span>{showManualInput ? "Hide manual entry" : "Enter token manually"}</span>
             </button>
           )}
 
@@ -525,9 +574,34 @@ export default function QRScanner({ eventId = null, eventTitle = "" }) {
             <span>{isScanning ? "Scanner Active" : "Offline"}</span>
           </div>
         </div>
+
+        {/* MANUAL TOKEN ENTRY FORM (FAIL-SAFE CHECK-IN) */}
+        {(showManualInput || !isScanning) && (
+          <form onSubmit={handleManualSubmit} className="mt-4 pt-4 border-t border-white/10">
+            <label className="text-[11px] font-bold uppercase tracking-wider text-slate-300 block mb-1.5">
+              Failsafe: Manual Token Check-In
+            </label>
+            <div className="flex gap-2">
+              <input 
+                type="text"
+                value={manualToken}
+                onChange={(e) => setManualToken(e.target.value)}
+                placeholder="Paste or type 36-char pass token..."
+                className="flex-1 px-3.5 py-2.5 rounded-xl bg-white/10 text-white placeholder:text-slate-400 text-xs border border-white/20 focus:outline-none focus:ring-1 focus:ring-emerald-400 font-mono"
+              />
+              <button
+                type="submit"
+                disabled={isManualSubmitting || !manualToken.trim()}
+                className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-40 text-slate-950 font-bold text-xs transition-colors cursor-pointer shrink-0"
+              >
+                {isManualSubmitting ? "Verifying..." : "Verify Pass"}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
 
-      {/* DYNAMIC SCAN RESULT MODAL / BANNER */}
+      {/* DYNAMIC SCAN RESULT BANNER */}
       {scanResult && (
         <div className={`w-full rounded-2xl p-6 border shadow-lg transition-all animate-in fade-in slide-in-from-bottom-4 duration-300 ${
           scanResult.type === "success"
@@ -576,78 +650,68 @@ export default function QRScanner({ eventId = null, eventTitle = "" }) {
                 </h4>
               )}
 
-              <p className="text-xs mt-1 opacity-80">
+              <p className="text-xs mt-1 opacity-90 leading-relaxed font-medium">
                 {scanResult.message}
               </p>
 
-              <div className="flex items-center space-x-4 mt-3 pt-3 border-t border-black/10 text-xs font-mono opacity-70">
+              {scanResult.isMismatch && onResetFilter && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onResetFilter();
+                    handleScanNext();
+                  }}
+                  className="mt-3 px-3 py-1.5 rounded-lg bg-rose-600 text-white font-bold text-xs hover:bg-rose-700 transition-colors"
+                >
+                  Switch to Auto-Detect Mode
+                </button>
+              )}
+
+              <div className="flex items-center space-x-3 mt-3 text-[11px] opacity-70">
                 <span className="flex items-center space-x-1">
-                  <Clock size={13} />
-                  <span>{new Date(scanResult.timestamp).toLocaleTimeString()}</span>
+                  <Clock size={12} />
+                  <span>{new Date(scanResult.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
                 </span>
                 {scanResult.eventTitle && (
-                  <span className="truncate max-w-[200px]">
-                    {scanResult.eventTitle}
-                  </span>
+                  <span>· {scanResult.eventTitle}</span>
                 )}
               </div>
             </div>
           </div>
-
-          <div className="mt-4 pt-3 flex justify-end">
-            <button
-              type="button"
-              onClick={handleScanNext}
-              className={`px-5 py-2.5 rounded-xl font-bold text-xs shadow-sm transition-all active:scale-95 cursor-pointer ${
-                scanResult.type === "success"
-                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                  : scanResult.type === "warning"
-                  ? "bg-amber-600 hover:bg-amber-700 text-white"
-                  : "bg-rose-600 hover:bg-rose-700 text-white"
-              }`}
-            >
-              Scan Next Ticket →
-            </button>
-          </div>
         </div>
       )}
 
-      {/* RECENT SCANS LEDGER */}
+      {/* RECENT SCAN ACTIVITY STREAM */}
       {recentScans.length > 0 && (
-        <div className="w-full bg-white rounded-2xl p-5 border border-slate-200 shadow-sm">
+        <div className="w-full bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
-            <div className="flex items-center space-x-2 text-slate-700 font-semibold text-xs uppercase tracking-wider">
-              <UserCheck size={16} className="text-emerald-600" />
-              <span>Session Check-in Ledger</span>
-            </div>
-            <span className="text-xs text-slate-400 font-mono">{recentScans.length} logged</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Recent Terminal Activity
+            </span>
+            <span className="text-xs text-slate-400 font-mono">Last {recentScans.length} scans</span>
           </div>
 
-          <div className="divide-y divide-slate-100 text-xs">
-            {recentScans.map((scan, i) => (
-              <div key={i} className="py-2.5 flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-slate-800">{scan.studentName}</p>
-                  <p className="text-[11px] text-slate-400">{scan.eventTitle || "Event Admission"}</p>
+          <div className="divide-y divide-slate-100">
+            {recentScans.map((scan, idx) => (
+              <div key={idx} className="py-2.5 flex items-center justify-between text-xs">
+                <div className="flex items-center space-x-2.5">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${
+                    scan.type === "success" ? "bg-emerald-500" : "bg-amber-500"
+                  }`} />
+                  <div>
+                    <strong className="text-slate-800">{scan.studentName}</strong>
+                    <span className="text-slate-400 block text-[11px]">{scan.eventTitle}</span>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                    scan.type === "success" 
-                      ? "bg-emerald-100 text-emerald-800" 
-                      : "bg-amber-100 text-amber-800"
-                  }`}>
-                    {scan.type === "success" ? "Attended" : "Duplicate"}
-                  </span>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
-                    {new Date(scan.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                  </p>
-                </div>
+
+                <span className="text-slate-400 font-mono text-[11px]">
+                  {new Date(scan.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                </span>
               </div>
             ))}
           </div>
         </div>
       )}
-
     </div>
   );
 }

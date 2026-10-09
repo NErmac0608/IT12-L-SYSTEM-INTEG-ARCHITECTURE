@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 const db = require('./db');
+const { ORGANIZER_PORTAL_KEY, ADMIN_PORTAL_KEY, verifyOrganizerPortalKey, verifyAdminPortalKey } = require('./portalSecurity');
 
 // Enforce JWT_SECRET existence (Fail-fast in all environments)
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET.trim() === '') {
@@ -88,60 +89,141 @@ function requireStudent(req, res, next) {
 // ==========================================
 // 1. AUTHENTICATION & LOGIN MANAGEMENT
 // ==========================================
+// Authentication Core Helper
+async function authenticateUserCredentials(email, password) {
+    if (!email || !password) {
+        throw { status: 400, message: 'Please provide both institutional email and password.' };
+    }
+
+    const result = await db.query(
+        'SELECT id, full_name, school_email, role, student_id, password_hash, is_active FROM users WHERE LOWER(school_email) = $1;',
+        [email.trim().toLowerCase()]
+    );
+
+    if (result.rows.length === 0) {
+        throw { status: 401, message: 'Invalid institutional email or password.' };
+    }
+
+    const user = result.rows[0];
+    const isMatch = await bcrypt.compare(password, user.password_hash);
+    if (!isMatch) {
+        throw { status: 401, message: 'Invalid institutional email or password.' };
+    }
+
+    if (!user.is_active) {
+        throw { status: 403, message: 'Your account has been deactivated. Please contact an administrator.' };
+    }
+
+    const token = jwt.sign(
+        { id: user.id, email: user.school_email, role: user.role.toLowerCase() },
+        JWT_SECRET,
+        { expiresIn: '12h' }
+    );
+
+    return {
+        user: {
+            id: user.id,
+            name: user.full_name,
+            email: user.school_email,
+            role: user.role.toLowerCase(),
+            studentId: user.student_id
+        },
+        token
+    };
+}
+
+// 1. ONE-WAY STUDENT AUTHENTICATION (Direct, non-searchable access)
+// Rejects organizer and administrative credentials to guarantee strict segregation
+app.post('/api/auth/student/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        const authData = await authenticateUserCredentials(email, password);
+
+        if (authData.user.role !== 'student') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access restricted: Student login only. Faculty and administrative accounts must use their designated secure portals.'
+            });
+        }
+
+        res.json({ success: true, ...authData });
+    } catch (err) {
+        const status = err.status || 500;
+        res.status(status).json({ success: false, message: err.message || 'Authentication error.' });
+    }
+});
+
+// 2. ENCRYPTED ORGANIZER PORTAL AUTHENTICATION
+// Requires valid encrypted portal key; strictly restricted to organizers and admins
+app.post('/api/portal/organizer/login', verifyOrganizerPortalKey, async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        const authData = await authenticateUserCredentials(email, password);
+
+        if (authData.user.role !== 'organizer' && authData.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: Student accounts are not permitted on the Organizer Terminal.'
+            });
+        }
+
+        res.json({ success: true, ...authData });
+    } catch (err) {
+        const status = err.status || 500;
+        res.status(status).json({ success: false, message: err.message || 'Authentication error.' });
+    }
+});
+
+// 3. ENCRYPTED ADMIN GATEWAY AUTHENTICATION
+// Requires valid encrypted admin portal key; strictly restricted to administrators
+app.post('/api/portal/admin/login', verifyAdminPortalKey, async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        const authData = await authenticateUserCredentials(email, password);
+
+        if (authData.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied: Strict administrative privileges required.'
+            });
+        }
+
+        res.json({ success: true, ...authData });
+    } catch (err) {
+        const status = err.status || 500;
+        res.status(status).json({ success: false, message: err.message || 'Authentication error.' });
+    }
+});
+
+// Verify encrypted portal access keys for obscured endpoints
+app.get('/api/portal/verify', (req, res) => {
+    const { scope, key } = req.query;
+    if (scope === 'organizer' && key === ORGANIZER_PORTAL_KEY) {
+        return res.json({ success: true, scope: 'organizer' });
+    }
+    if (scope === 'admin' && key === ADMIN_PORTAL_KEY) {
+        return res.json({ success: true, scope: 'admin' });
+    }
+    return res.status(404).json({ success: false, message: 'Endpoint not found.' });
+});
+
+// Standard backwards-compatible login handler (routes students by default)
 app.post('/api/auth/login', async (req, res) => {
     try {
-        const email = (req.body.email || '').trim().toLowerCase();
-        const { password } = req.body;
+        const { email, password, target_role } = req.body;
+        const authData = await authenticateUserCredentials(email, password);
 
-        if (!email || !password) {
-            return res.status(400).json({ success: false, message: 'Please provide both institutional email and password.' });
+        if (target_role && authData.user.role !== target_role) {
+            return res.status(403).json({
+                success: false,
+                message: `Access denied for specified ${target_role} role.`
+            });
         }
 
-        // Fetch user strictly by normalized email
-        const result = await db.query(
-            'SELECT id, full_name, school_email, role, student_id, password_hash, is_active FROM users WHERE LOWER(school_email) = $1;',
-            [email]
-        );
-
-        if (result.rows.length === 0) {
-            return res.status(401).json({ success: false, message: 'Invalid institutional email or password.' });
-        }
-
-        const user = result.rows[0];
-        
-        // Securely compare the provided password against the database hash
-        const isMatch = await bcrypt.compare(password, user.password_hash);
-        
-        if (!isMatch) {
-            return res.status(401).json({ success: false, message: 'Invalid institutional email or password.' });
-        }
-
-        // Check if the account has been deactivated by an administrator
-        if (!user.is_active) {
-            return res.status(403).json({ success: false, message: 'Your account has been deactivated. Please contact an administrator.' });
-        }
-
-        // Generate JWT token
-        const token = jwt.sign(
-            { id: user.id, email: user.school_email, role: user.role.toLowerCase() },
-            JWT_SECRET,
-            { expiresIn: '12h' }
-        );
-
-        res.json({
-            success: true,
-            user: {
-                id: user.id,
-                name: user.full_name,
-                email: user.school_email,
-                role: user.role.toLowerCase(), // Converts 'Student' / 'Organizer' string values cleanly to lowercase
-                studentId: user.student_id
-            },
-            token
-        });
+        res.json({ success: true, ...authData });
     } catch (err) {
-        console.error('Auth Error:', err.message);
-        res.status(500).json({ success: false, message: 'Server error processing authentication request.' });
+        const status = err.status || 500;
+        res.status(status).json({ success: false, message: err.message || 'Authentication error.' });
     }
 });
 
@@ -394,6 +476,46 @@ app.get('/api/attendance', authenticateToken, async (req, res) => {
     }
 });
 
+// ==========================================
+// 3.1 DEDICATED STUDENT FETCH CONTROLLERS
+// ==========================================
+
+// GET: Dedicated student dashboard overview
+app.get('/api/student/dashboard', authenticateToken, requireStudent, async (req, res) => {
+    try {
+        const eventsRes = await db.query('SELECT * FROM event_list_view WHERE status = $1 ORDER BY event_date ASC;', ['open']);
+        const registrationsRes = await db.query(
+            'SELECT * FROM event_attendance_view WHERE student_id_record = $1 ORDER BY registered_at DESC;',
+            [req.user.id]
+        );
+        const attendedCount = registrationsRes.rows.filter(r => r.status === 'attended').length;
+
+        res.json({
+            success: true,
+            student: req.user,
+            totalEventsOpen: eventsRes.rows.length,
+            totalRegistrations: registrationsRes.rows.length,
+            totalAttended: attendedCount,
+            passes: registrationsRes.rows,
+            recommendedEvents: eventsRes.rows.slice(0, 3)
+        });
+    } catch (err) {
+        console.error('Student Dashboard Fetch Error:', err.message);
+        res.status(500).json({ success: false, message: 'Server error fetching student dashboard data.' });
+    }
+});
+
+// GET: Dedicated student events catalog
+app.get('/api/student/events', async (req, res) => {
+    try {
+        const result = await db.query('SELECT * FROM event_list_view WHERE status = $1 ORDER BY event_date ASC;', ['open']);
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Student Events Fetch Error:', err.message);
+        res.status(500).json({ success: false, message: 'Server error fetching student events.' });
+    }
+});
+
 // GET: Dedicated student registration tickets endpoint
 app.get('/api/student/registrations', authenticateToken, requireStudent, async (req, res) => {
     try {
@@ -408,14 +530,70 @@ app.get('/api/student/registrations', authenticateToken, requireStudent, async (
     }
 });
 
+// ==========================================
+// 3.2 DEDICATED ORGANIZER FETCH CONTROLLERS
+// ==========================================
+
+// GET: Dedicated organizer management station overview
+app.get('/api/organizer/dashboard', authenticateToken, requireOrganizer, async (req, res) => {
+    try {
+        const eventsRes = await db.query('SELECT * FROM event_list_view ORDER BY event_date DESC;');
+        const attendanceRes = await db.query('SELECT * FROM event_attendance_view ORDER BY registered_at DESC;');
+        const totalAttended = attendanceRes.rows.filter(r => r.status === 'attended').length;
+        const totalRegistered = attendanceRes.rows.length;
+        const turnoutRate = totalRegistered > 0 ? Math.round((totalAttended / totalRegistered) * 100) : 0;
+
+        res.json({
+            success: true,
+            organizer: req.user,
+            totalEvents: eventsRes.rows.length,
+            activeEvents: eventsRes.rows.filter(e => e.status === 'open' || e.status === 'ongoing').length,
+            totalEnrolled: totalRegistered,
+            totalAttended: totalAttended,
+            turnoutRate: turnoutRate,
+            recentCheckIns: attendanceRes.rows.filter(r => r.status === 'attended').slice(0, 5),
+            eventCatalog: eventsRes.rows
+        });
+    } catch (err) {
+        console.error('Organizer Dashboard Fetch Error:', err.message);
+        res.status(500).json({ success: false, message: 'Server error fetching organizer dashboard data.' });
+    }
+});
+
+// GET: Dedicated organizer events catalog
+app.get('/api/organizer/events', authenticateToken, requireOrganizer, async (req, res) => {
+    try {
+        const result = await db.query('SELECT * FROM event_list_view ORDER BY event_date DESC;');
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Organizer Events Fetch Error:', err.message);
+        res.status(500).json({ success: false, message: 'Server error fetching organizer events.' });
+    }
+});
+
+// GET: Dedicated organizer attendance ledger
+app.get('/api/organizer/attendance', authenticateToken, requireOrganizer, async (req, res) => {
+    try {
+        const result = await db.query('SELECT * FROM event_attendance_view ORDER BY registered_at DESC;');
+        res.json(result.rows);
+    } catch (err) {
+        console.error('Organizer Attendance Fetch Error:', err.message);
+        res.status(500).json({ success: false, message: 'Server error fetching organizer attendance.' });
+    }
+});
+
 // UUID validation regex for incoming digital ticket tokens
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // POST: Manage QR verification requests to register student attendance (For QRScanner.jsx)
 app.post('/api/attendance/scan', authenticateToken, requireOrganizer, async (req, res) => {
     try {
-        const qr_token = (req.body.qr_token_string || req.body.qr_token || '').trim();
+        const rawToken = (req.body.qr_token_string || req.body.qr_token || '').trim();
         let event_id = req.body.event_id;
+
+        // Robust UUID extraction (handles raw UUIDs, JSON payloads, or URL/text wrappers)
+        const uuidMatch = rawToken.match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i);
+        const qr_token = uuidMatch ? uuidMatch[0].toLowerCase() : rawToken;
 
         if (!qr_token || !UUID_REGEX.test(qr_token)) {
             return res.status(400).json({ success: false, message: 'Invalid or missing QR token format.' });
@@ -577,11 +755,36 @@ app.get('/api/admin/stats', authenticateToken, requireAdmin, async (req, res) =>
         const totalUsersResult = await db.query('SELECT COUNT(*) FROM users');
         const studentsResult = await db.query("SELECT COUNT(*) FROM users WHERE role = 'student'");
         const organizersResult = await db.query("SELECT COUNT(*) FROM users WHERE role = 'organizer'");
+        const totalEventsResult = await db.query('SELECT COUNT(*) FROM events');
+        const totalRegistrationsResult = await db.query('SELECT COUNT(*) FROM registrations');
+        const totalAttendedResult = await db.query("SELECT COUNT(*) FROM registrations WHERE status = 'attended'");
+
+        const recentOrganizersResult = await db.query(`
+            SELECT u.id, u.full_name, u.school_email, d.name as department, u.is_active, u.created_at
+            FROM users u
+            LEFT JOIN departments d ON u.department_id = d.id
+            WHERE u.role = 'organizer'
+            ORDER BY u.created_at DESC LIMIT 5;
+        `);
+
+        const recentEventsResult = await db.query(`
+            SELECT e.id, e.title, e.event_date, e.status, d.name as department, u.full_name as organizer_name
+            FROM events e
+            LEFT JOIN departments d ON e.department_id = d.id
+            LEFT JOIN users u ON e.organizer_id = u.id
+            ORDER BY e.created_at DESC LIMIT 5;
+        `);
         
         res.json({
+            success: true,
             totalUsers: totalUsersResult.rows[0].count,
             students: studentsResult.rows[0].count,
-            organizers: organizersResult.rows[0].count
+            organizers: organizersResult.rows[0].count,
+            totalEvents: totalEventsResult.rows[0].count,
+            totalRegistrations: totalRegistrationsResult.rows[0].count,
+            totalAttended: totalAttendedResult.rows[0].count,
+            recentOrganizers: recentOrganizersResult.rows,
+            recentEvents: recentEventsResult.rows
         });
     } catch (err) {
         console.error('Stats Error:', err.message);

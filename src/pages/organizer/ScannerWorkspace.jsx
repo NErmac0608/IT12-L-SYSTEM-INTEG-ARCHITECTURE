@@ -104,6 +104,7 @@ export default function ScannerWorkspace() {
         <QRScanner 
           eventId={currentEventId || null} 
           eventTitle={selectedEvent ? selectedEvent.title : ""} 
+          onResetFilter={() => setSelectedEventId("auto")}
         />
       </ErrorBoundary>
 

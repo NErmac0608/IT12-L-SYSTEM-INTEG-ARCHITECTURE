@@ -157,7 +157,7 @@ function Landing() {
           <p>© 2026 UM-TAP. University of Mindanao Tagum College.</p>
           <div className="flex gap-4">
             <Link to="/events" className="hover:text-white transition-colors">Calendar</Link>
-            <Link to="/login" className="hover:text-white transition-colors">Portal</Link>
+            <Link to="/login" className="hover:text-white transition-colors">Student Portal</Link>
           </div>
         </footer>
       </section>

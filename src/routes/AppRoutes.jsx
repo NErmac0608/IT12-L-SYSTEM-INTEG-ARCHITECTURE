@@ -19,40 +19,61 @@ import ScannerWorkspace from "../pages/organizer/ScannerWorkspace";
 import AttendanceWorkspace from "../pages/organizer/AttendanceWorkspace";
 import AdminWorkspace from "../pages/admin/AdminWorkspace";
 import AccountManagementWorkspace from "../pages/admin/AccountManagementWorkspace";
+import SecurePortalGateway from "../pages/portal/SecurePortalGateway";
+import { ORGANIZER_HASHED_PATH, ADMIN_HASHED_PATH } from "../lib/portalSecurity";
 
 function PublicLayout() {
   return <><Navbar /><Outlet /></>;
 }
 
 function AppRoutes() {
-  return <BrowserRouter><Routes>
-    <Route element={<PublicLayout />}>
-      <Route path="/" element={<Landing />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/events" element={<Events />} />
-    </Route>
-    <Route element={<ProtectedRoute allowedRoles={["student"]}><StudentLayout /></ProtectedRoute>}>
-      <Route path="/dashboard/student" element={<StudentDashboard />} />
-      <Route path="/student/events" element={<Events />} />
-      <Route path="/student/events/:id" element={<EventDetails />} />
-      <Route path="/student/registrations" element={<MyRegistrations />} />
-      <Route path="/student/qr" element={<MyQRCode />} />
-    </Route>
-    <Route element={<ProtectedRoute allowedRoles={["organizer"]}><OrganizerLayout /></ProtectedRoute>}>
-      <Route path="/dashboard/organizer" element={<OrganizerWorkspace />} />
-      <Route path="/organizer/events" element={<EventManagementWorkspace />} />
-      <Route path="/organizer/events/new" element={<EventFormWorkspace />} />
-      <Route path="/organizer/events/:id/edit" element={<EventFormWorkspace />} />
-      <Route path="/organizer/scanner" element={<ScannerWorkspace />} />
-      <Route path="/organizer/attendance" element={<AttendanceWorkspace />} />
-    </Route>
-    <Route element={<ProtectedRoute allowedRoles={["admin"]}><AdminLayout /></ProtectedRoute>}>
-      <Route path="/dashboard/admin" element={<AdminWorkspace />} />
-      <Route path="/admin/accounts" element={<AccountManagementWorkspace />} />
-    </Route>
-    <Route path="*" element={<Navigate to="/" replace />} />
-  </Routes></BrowserRouter>;
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* PUBLIC & DIRECT STUDENT ROUTES (NON-SEARCHABLE ACCESS FOR STUDENTS) */}
+        <Route element={<PublicLayout />}>
+          <Route path="/" element={<Landing />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/student/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/events" element={<Events />} />
+
+          {/* ENCRYPTED & OBSCURED ENDPOINTS FOR ORGANIZER AND ADMIN (SEARCH-STYLE & HASHED PATHS) */}
+          <Route path="/portal" element={<SecurePortalGateway />} />
+          <Route path={`${ORGANIZER_HASHED_PATH}/*`} element={<SecurePortalGateway />} />
+          <Route path={`${ADMIN_HASHED_PATH}/*`} element={<SecurePortalGateway />} />
+        </Route>
+
+        {/* 1. STUDENT PROTECTED APPLICATION WORKSPACE (ONE-WAY DIRECT ACCESS) */}
+        <Route element={<ProtectedRoute allowedRoles={["student"]}><StudentLayout /></ProtectedRoute>}>
+          <Route path="/dashboard/student" element={<StudentDashboard />} />
+          <Route path="/student/events" element={<Events />} />
+          <Route path="/student/events/:id" element={<EventDetails />} />
+          <Route path="/student/registrations" element={<MyRegistrations />} />
+          <Route path="/student/qr" element={<MyQRCode />} />
+        </Route>
+
+        {/* 2. ORGANIZER PROTECTED WORKSPACE */}
+        <Route element={<ProtectedRoute allowedRoles={["organizer"]}><OrganizerLayout /></ProtectedRoute>}>
+          <Route path="/dashboard/organizer" element={<OrganizerWorkspace />} />
+          <Route path="/organizer/events" element={<EventManagementWorkspace />} />
+          <Route path="/organizer/events/new" element={<EventFormWorkspace />} />
+          <Route path="/organizer/events/:id/edit" element={<EventFormWorkspace />} />
+          <Route path="/organizer/scanner" element={<ScannerWorkspace />} />
+          <Route path="/organizer/attendance" element={<AttendanceWorkspace />} />
+        </Route>
+
+        {/* 3. ADMIN PROTECTED WORKSPACE */}
+        <Route element={<ProtectedRoute allowedRoles={["admin"]}><AdminLayout /></ProtectedRoute>}>
+          <Route path="/dashboard/admin" element={<AdminWorkspace />} />
+          <Route path="/admin/accounts" element={<AccountManagementWorkspace />} />
+        </Route>
+
+        {/* CATCH-ALL REDIRECT */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }
 
 export default AppRoutes;
