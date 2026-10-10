@@ -52,6 +52,26 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const registerOrganizer = async ({ fullName, email, password, departmentId }) => {
+    try {
+      const data = await apiRequest("/portal/organizer/register", {
+        method: "POST",
+        headers: {
+          "x-portal-key": ORGANIZER_PORTAL_KEY,
+        },
+        body: JSON.stringify({
+          full_name: fullName,
+          school_email: email,
+          password,
+          department_id: departmentId,
+        }),
+      });
+      return handleAuthSuccess(data);
+    } catch (error) {
+      return { success: false, message: error.message || "Registration failed." };
+    }
+  };
+
   // 3. Encrypted administrative gateway authentication
   const loginAdmin = async (email, password) => {
     try {
@@ -68,6 +88,25 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const registerAdmin = async ({ fullName, email, password }) => {
+    try {
+      const data = await apiRequest("/portal/admin/register", {
+        method: "POST",
+        headers: {
+          "x-portal-key": ADMIN_PORTAL_KEY,
+        },
+        body: JSON.stringify({
+          full_name: fullName,
+          school_email: email,
+          password,
+        }),
+      });
+      return handleAuthSuccess(data);
+    } catch (error) {
+      return { success: false, message: error.message || "Registration failed." };
+    }
+  };
+
   // General login fallback for direct links
   const login = async (username, password) => {
     return loginStudent(username, password);
@@ -80,7 +119,16 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, loginStudent, loginOrganizer, loginAdmin, logout }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      login, 
+      loginStudent, 
+      loginOrganizer, 
+      registerOrganizer,
+      loginAdmin, 
+      registerAdmin,
+      logout 
+    }}>
       {children}
     </AuthContext.Provider>
   );

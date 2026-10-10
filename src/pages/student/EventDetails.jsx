@@ -1,16 +1,18 @@
-import { ArrowLeft, CalendarDays, Clock3, MapPin, CheckCircle2, Ticket } from "lucide-react";
+import { ArrowLeft, CalendarDays, Clock3, MapPin, CheckCircle2, Ticket, Download, Check } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useEvents } from "../../context/EventContext";
-import { QRCodeSVG } from "qrcode.react";
+import { QRCodeCanvas } from "qrcode.react";
 import { formatEventDate, getDepartmentStyle } from "../../lib/utils";
+import { downloadQRCodePass } from "../../lib/qrExport";
 
 function EventDetails() {
   const { id } = useParams(); 
   const { user } = useAuth(); 
   const { events, registrations, registerForEvent, isRegistered } = useEvents(); 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDownloaded, setIsDownloaded] = useState(false);
   
   const event = events.find((item) => String(item.id) === String(id));
   if (!event) {
@@ -34,6 +36,26 @@ function EventDetails() {
     setIsSubmitting(true);
     await registerForEvent(event.id, user.id); 
     setIsSubmitting(false);
+  };
+
+  const handleDownload = () => {
+    if (!registration?.qr_token) return;
+    const success = downloadQRCodePass({
+      canvasId: "qr-canvas-details",
+      title: event.title,
+      qrToken: registration.qr_token,
+      studentName: user?.name || "Student",
+      studentId: user?.studentId || "",
+      date: formatEventDate(event.event_date || event.date),
+      venue: event.location || event.venue || "UM Tagum Campus",
+    });
+
+    if (success) {
+      setIsDownloaded(true);
+      setTimeout(() => {
+        setIsDownloaded(false);
+      }, 2500);
+    }
   };
   
   return (
@@ -107,27 +129,63 @@ function EventDetails() {
             <span>{isSubmitting ? "Registering..." : "Register for Event Pass"}</span>
           </button>
         ) : (
-          <div className="mt-6 pt-6 border-t border-slate-100 flex flex-col items-center text-center">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-full text-xs font-bold mb-3">
-              <CheckCircle2 size={14} />
-              <span>Seat Reserved & Pass Issued</span>
+          <div className="mt-6 pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div className="flex-1 text-left sm:pr-4">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-full text-xs font-bold mb-3">
+                <CheckCircle2 size={14} />
+                <span>Seat Reserved & Pass Issued</span>
+              </div>
+
+              <h4 className="text-lg font-bold text-slate-900 mb-1">
+                Your Digital Admission Pass
+              </h4>
+              <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+                Present this verified QR code at the campus venue gate for instant check-in, or save it to your camera roll.
+              </p>
+
+              {registration?.qr_token && (
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl inline-block font-mono text-xs text-slate-600">
+                  <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-bold">Pass Reference</span>
+                  <code>{registration.qr_token}</code>
+                </div>
+              )}
             </div>
 
-            <p className="text-xs text-slate-500 mb-4 max-w-xs">
-              Present this verified QR code at the venue gate for check-in.
-            </p>
-
             {registration?.qr_token && (
-              <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs flex flex-col items-center">
-                <QRCodeSVG 
-                  value={registration.qr_token} 
-                  size={190} 
-                  level="M" 
-                  fgColor="#102a43" 
-                />
-                <span className="mt-3 font-mono text-[10px] text-slate-400 uppercase tracking-widest">
-                  TOKEN: {registration.qr_token.split('-')[0]}
-                </span>
+              <div className="p-5 bg-white border border-slate-200 rounded-2xl shadow-xs flex flex-col items-center w-full sm:w-[240px] shrink-0">
+                <div className="bg-white p-2 border border-slate-100 rounded-xl mb-3">
+                  <QRCodeCanvas 
+                    id="qr-canvas-details"
+                    value={registration.qr_token} 
+                    size={180} 
+                    bgColor="#ffffff" 
+                    fgColor="#000000" 
+                    level="Q" 
+                    includeMargin={true}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleDownload}
+                  className={`w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold shadow-xs transition-all active:scale-[0.98] cursor-pointer ${
+                    isDownloaded
+                      ? "bg-emerald-600 text-white"
+                      : "bg-[#102a43] hover:bg-[#0a1c2e] text-white"
+                  }`}
+                >
+                  {isDownloaded ? (
+                    <>
+                      <Check size={14} strokeWidth={2.5} />
+                      <span>Pass Downloaded!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download size={14} strokeWidth={2.5} className="text-[#f97316]" />
+                      <span>Download QR Pass</span>
+                    </>
+                  )}
+                </button>
               </div>
             )}
           </div>

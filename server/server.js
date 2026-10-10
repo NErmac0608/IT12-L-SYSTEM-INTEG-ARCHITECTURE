@@ -174,6 +174,55 @@ app.post('/api/portal/organizer/login', verifyOrganizerPortalKey, async (req, re
     }
 });
 
+// POST: Register a new organizer account via portal
+app.post('/api/portal/organizer/register', verifyOrganizerPortalKey, async (req, res) => {
+    try {
+        const { full_name, password, department_id } = req.body;
+        const school_email = (req.body.school_email || req.body.email || '').trim().toLowerCase();
+
+        if (!full_name || !school_email || !password || !department_id) {
+            return res.status(400).json({ success: false, message: 'All registration fields (name, email, department, password) are required.' });
+        }
+
+        if (!/^[A-Z0-9._%+-]+@umindanao\.edu\.ph$/i.test(school_email)) {
+            return res.status(400).json({ success: false, message: 'Institutional email must belong to @umindanao.edu.ph domain.' });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const result = await db.query(
+            `INSERT INTO users (full_name, school_email, password_hash, department_id, role, is_active) 
+             VALUES ($1, $2, $3, $4, 'organizer', true) 
+             RETURNING id, full_name, school_email, role;`,
+            [full_name.trim(), school_email, hashedPassword, department_id]
+        );
+
+        const user = result.rows[0];
+        const token = jwt.sign(
+            { id: user.id, email: user.school_email, role: 'organizer' },
+            JWT_SECRET,
+            { expiresIn: '12h' }
+        );
+
+        res.status(201).json({
+            success: true,
+            user: {
+                id: user.id,
+                name: user.full_name,
+                email: user.school_email,
+                role: 'organizer'
+            },
+            token
+        });
+    } catch (err) {
+        console.error('Organizer Portal Registration Error:', err.message);
+        if (err.code === '23505') {
+            return res.status(400).json({ success: false, message: 'Institutional email already registered.' });
+        }
+        res.status(500).json({ success: false, message: 'Server error registering organizer profile.' });
+    }
+});
+
 // 3. ENCRYPTED ADMIN GATEWAY AUTHENTICATION
 // Requires valid encrypted admin portal key; strictly restricted to administrators
 app.post('/api/portal/admin/login', verifyAdminPortalKey, async (req, res) => {
@@ -192,6 +241,55 @@ app.post('/api/portal/admin/login', verifyAdminPortalKey, async (req, res) => {
     } catch (err) {
         const status = err.status || 500;
         res.status(status).json({ success: false, message: err.message || 'Authentication error.' });
+    }
+});
+
+// POST: Register a new admin account via gateway
+app.post('/api/portal/admin/register', verifyAdminPortalKey, async (req, res) => {
+    try {
+        const { full_name, password } = req.body;
+        const school_email = (req.body.school_email || req.body.email || '').trim().toLowerCase();
+
+        if (!full_name || !school_email || !password) {
+            return res.status(400).json({ success: false, message: 'Full name, institutional email, and password are required.' });
+        }
+
+        if (!/^[A-Z0-9._%+-]+@umindanao\.edu\.ph$/i.test(school_email)) {
+            return res.status(400).json({ success: false, message: 'Institutional email must belong to @umindanao.edu.ph domain.' });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const result = await db.query(
+            `INSERT INTO users (full_name, school_email, password_hash, department_id, role, is_active) 
+             VALUES ($1, $2, $3, 1, 'admin', true) 
+             RETURNING id, full_name, school_email, role;`,
+            [full_name.trim(), school_email, hashedPassword]
+        );
+
+        const user = result.rows[0];
+        const token = jwt.sign(
+            { id: user.id, email: user.school_email, role: 'admin' },
+            JWT_SECRET,
+            { expiresIn: '12h' }
+        );
+
+        res.status(201).json({
+            success: true,
+            user: {
+                id: user.id,
+                name: user.full_name,
+                email: user.school_email,
+                role: 'admin'
+            },
+            token
+        });
+    } catch (err) {
+        console.error('Admin Portal Registration Error:', err.message);
+        if (err.code === '23505') {
+            return res.status(400).json({ success: false, message: 'Institutional email already registered.' });
+        }
+        res.status(500).json({ success: false, message: 'Server error registering admin profile.' });
     }
 });
 

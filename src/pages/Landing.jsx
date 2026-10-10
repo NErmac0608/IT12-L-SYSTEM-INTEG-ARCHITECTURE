@@ -48,35 +48,44 @@ function Landing() {
           </div>
         </div>
 
-        {/* 2. OPTIMIZED HERO TICKET CARD */}
-        <div className="relative z-10 w-full max-w-sm mx-auto mt-20 md:mt-16">
-          <div className="w-full bg-white rounded-3xl shadow-[0_20px_40px_-15px_rgba(16,42,67,0.12)] border border-[#EAEAEA] flex flex-col overflow-hidden">
-            <div className="bg-[#102a43] p-5 text-white text-left">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-[#f97316] bg-white/10 px-2 py-0.5 rounded-full">
-                  Sample Digital Pass
-                </span>
-                <span className="text-xs font-mono text-white/70">Verified</span>
+        {/* 2. OPTIMIZED HERO TICKET CARD (FLEXED HORIZONTALLY ON SM+) */}
+        <div className="relative z-10 w-full max-w-xl mx-auto mt-16">
+          <div className="w-full bg-white rounded-3xl shadow-[0_20px_40px_-15px_rgba(16,42,67,0.12)] border border-[#EAEAEA] flex flex-col sm:flex-row overflow-hidden transition-all hover:shadow-lg">
+            
+            {/* LEFT SIDE: TICKET DETAILS */}
+            <div className="bg-[#102a43] p-6 text-white text-left flex-1 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-2.5">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#f97316] bg-white/10 px-2.5 py-0.5 rounded-full border border-white/15">
+                    Sample Digital Pass
+                  </span>
+                  <span className="text-xs font-mono text-emerald-400 font-bold">✓ Verified</span>
+                </div>
+                <h4 className="text-xl font-extrabold mb-1.5 text-white">University Tech Summit</h4>
+                <p className="text-xs text-white/70">Department of Computing Education</p>
               </div>
-              <h4 className="text-lg font-semibold mb-2">University Tech Summit</h4>
-              <div className="flex justify-between text-xs font-mono text-white/80">
+
+              <div className="flex justify-between text-xs font-mono text-white/80 pt-4 border-t border-white/15 mt-4">
                 <span>GYMNASIUM</span>
-                <span>08:00 AM</span>
+                <span className="text-[#f97316]">08:00 AM</span>
               </div>
             </div>
             
-            {/* Ticket Perforation Notch */}
-            <div className="h-6 bg-white relative flex items-center justify-between z-20">
-              <div className="w-5 h-5 bg-[#FBFBFA] rounded-full -ml-2.5 absolute left-0 shadow-[inset_-2px_0_4px_rgba(0,0,0,0.05)]" />
-              <div className="flex-1 border-t-2 border-dashed border-[#EAEAEA] mx-4" />
-              <div className="w-5 h-5 bg-[#FBFBFA] rounded-full -mr-2.5 absolute right-0 shadow-[inset_2px_0_4px_rgba(0,0,0,0.05)]" />
+            {/* TICKET PERFORATION NOTCH (VERTICAL ON SM+, HORIZONTAL ON MOBILE) */}
+            <div className="relative sm:w-8 h-6 sm:h-auto bg-[#FBFBFA] flex sm:flex-col items-center justify-between z-20 shrink-0">
+              <div className="w-5 h-5 bg-[#FBFBFA] rounded-full -ml-2.5 sm:hidden absolute left-0" />
+              <div className="flex-1 border-t-2 sm:border-t-0 sm:border-r-2 border-dashed border-[#EAEAEA] mx-4 sm:mx-0 sm:my-4 sm:h-full w-full" />
+              <div className="w-5 h-5 bg-[#FBFBFA] rounded-full -mr-2.5 sm:hidden absolute right-0" />
+              <div className="hidden sm:block w-5 h-5 bg-[#FBFBFA] rounded-full -mt-2.5 absolute top-0" />
+              <div className="hidden sm:block w-5 h-5 bg-[#FBFBFA] rounded-full -mb-2.5 absolute bottom-0" />
             </div>
 
-            <div className="p-6 flex flex-col items-center bg-white">
-              <div className="p-2 border border-[#EAEAEA] rounded-xl bg-white shadow-xs">
-                <QrCode size={130} strokeWidth={1.5} className="text-[#102a43]" />
+            {/* RIGHT SIDE: QR CODE FLEXED */}
+            <div className="p-6 flex flex-col items-center justify-center bg-white sm:w-[220px] shrink-0">
+              <div className="p-2.5 border-2 border-[#EAEAEA] rounded-2xl bg-white shadow-xs">
+                <QrCode size={135} strokeWidth={1.5} className="text-[#102a43]" />
               </div>
-              <p className="mt-3 text-[10px] font-mono text-[#787774] tracking-[0.2em] uppercase">
+              <p className="mt-3 text-[10px] font-mono text-[#787774] tracking-[0.2em] uppercase font-bold">
                 ID: TAP-2026-X8
               </p>
             </div>
