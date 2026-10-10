@@ -21,6 +21,19 @@ const poolConfig = process.env.DATABASE_URL
         port: process.env.DB_PORT
       };
 
+if (process.env.DATABASE_URL) {
+    try {
+        const parsedUrl = new URL(process.env.DATABASE_URL);
+        console.log(`📡 Connecting using DATABASE_URL -> Host: ${parsedUrl.hostname}, Database: ${parsedUrl.pathname}`);
+    } catch {
+        console.log('📡 Connecting using DATABASE_URL');
+    }
+} else if (process.env.DB_HOST) {
+    console.log(`📡 Connecting using DB_HOST: ${process.env.DB_HOST}, Port: ${process.env.DB_PORT || 5432}, User: ${process.env.DB_USER}`);
+} else {
+    console.warn('⚠️ WARNING: Neither DATABASE_URL nor DB_HOST was found in environment variables! Server is attempting localhost:5432 (which will fail on Render).');
+}
+
 const pool = new Pool(poolConfig);
 
 pool.query('SELECT NOW()', (err, res) => {
