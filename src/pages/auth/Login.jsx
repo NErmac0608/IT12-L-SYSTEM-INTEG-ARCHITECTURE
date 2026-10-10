@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { ArrowRight, Mail, Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 
@@ -9,7 +9,7 @@ function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { loginStudent } = useAuth();
+  const { user, loginStudent } = useAuth();
   const navigate = useNavigate();
 
   const submit = async (event) => {
@@ -46,6 +46,26 @@ function Login() {
             Student <span className="text-[#f97316]">Login</span>
           </h1>
         </div>
+
+        {/* ALREADY LOGGED IN NOTICE */}
+        {user && (
+          <div className="mb-5 p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-2.5 text-amber-900 text-xs leading-relaxed">
+            <AlertCircle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-bold">You are already signed in</p>
+              <p className="text-amber-800 text-[11px] mt-0.5">
+                Active session as {user.name || user.email} ({user.role}).
+              </p>
+              <Link
+                to={`/dashboard/${user.role}`}
+                className="mt-2 inline-flex items-center gap-1 font-bold text-[#102a43] hover:underline"
+              >
+                <span>Continue to Dashboard</span>
+                <ArrowRight size={13} />
+              </Link>
+            </div>
+          </div>
+        )}
 
         {/* LOGIN FORM */}
         <form onSubmit={submit} className="flex flex-col gap-4">

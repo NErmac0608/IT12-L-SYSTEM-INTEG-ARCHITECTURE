@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { LogIn, LogOut, Settings, CalendarDays } from "lucide-react";
+import { LogIn, LogOut, LayoutDashboard, CalendarDays } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import logo from "../../um-tap-logo-transparent.png";
 
@@ -95,7 +95,7 @@ function Navbar() {
                   to={`/dashboard/${user.role}`}
                   className="hidden md:flex items-center gap-2 text-[14px] font-semibold text-[#787774] hover:text-[#102a43] transition-colors px-2 py-2"
                 >
-                  <Settings size={16} strokeWidth={2.5} />
+                  <LayoutDashboard size={16} strokeWidth={2.5} />
                   Dashboard
                 </Link>
               )}

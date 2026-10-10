@@ -1,8 +1,40 @@
-import { ArrowRight, QrCode, Ticket, Activity } from "lucide-react";
-import { Link } from "react-router-dom";
+import { ArrowRight, QrCode, Ticket, Activity, AlertCircle, LogOut, X } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { useState } from "react";
 import ParticleBackground from "../components/ParticleBackground";
+import { useEvents } from "../context/EventContext";
+import { useAuth } from "../context/AuthContext";
 
 function Landing() {
+  const { events } = useEvents();
+  const { user, logout } = useAuth();
+  const [showLoggedInModal, setShowLoggedInModal] = useState(false);
+  const navigate = useNavigate();
+
+  const userName = user ? user.name || user.email || "Account" : "";
+
+  const handleAuthClick = (e) => {
+    if (user) {
+      e.preventDefault();
+      setShowLoggedInModal(true);
+    }
+  };
+
+  const handleLogoutAndLogin = () => {
+    setShowLoggedInModal(false);
+    logout();
+    navigate("/login");
+  };
+
+  // Find the single latest ongoing event (or latest active/open event as fallback)
+  const latestOngoingEvent =
+    events?.filter((e) => e.status === "ongoing").sort((a, b) => Number(b.id) - Number(a.id))[0] ||
+    events?.filter((e) => e.status === "open").sort((a, b) => Number(b.id) - Number(a.id))[0] ||
+    events?.[events.length - 1] ||
+    null;
+
+  const eventTitle = latestOngoingEvent?.title || "SITS General Assembly";
+
   return (
     <main className="min-h-screen selection:bg-[#f97316]/20 selection:text-[#f97316] font-sans bg-[#FBFBFA]">
       
@@ -16,10 +48,21 @@ function Landing() {
 
         <div className="relative z-10 max-w-4xl mx-auto flex flex-col items-center w-full">
           
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white border border-[#EAEAEA] shadow-xs mb-3 text-[11px] sm:text-xs font-bold uppercase tracking-wider text-[#102a43]">
-            <span className="w-2 h-2 rounded-full bg-[#f97316]" />
-            UM Tagum Event Portal
-          </div>
+          <Link
+            to={latestOngoingEvent && user ? `/student/events/${latestOngoingEvent.id}` : "/events"}
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white border border-[#EAEAEA] shadow-xs mb-3 text-[11px] sm:text-xs font-bold tracking-wide text-[#102a43] hover:border-[#f97316]/50 hover:shadow-sm transition-all group max-w-[90vw] sm:max-w-md"
+          >
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#f97316] opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#f97316]"></span>
+            </span>
+            <span className="truncate">
+              <span className="text-[#f97316] font-extrabold mr-1.5">Live now:</span>
+              <span className="font-semibold text-slate-800 group-hover:text-[#102a43] transition-colors">
+                {eventTitle}
+              </span>
+            </span>
+          </Link>
 
           <h1 className="text-4xl sm:text-6xl md:text-7xl font-bold tracking-tight text-[#102a43] leading-[1.08] mb-4 sm:mb-6">
             Campus events, <br/>
@@ -34,6 +77,7 @@ function Landing() {
           <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs sm:max-w-none sm:w-auto justify-center">
             <Link 
               to="/login" 
+              onClick={handleAuthClick}
               className="inline-flex items-center justify-center gap-2 bg-[#102a43] text-white px-7 py-3.5 rounded-xl font-semibold hover:bg-[#0a1c2e] active:scale-[0.98] transition-all text-sm sm:text-base shadow-sm"
             >
               <span>Get Started</span>
@@ -148,12 +192,14 @@ function Landing() {
           <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs sm:max-w-none sm:w-auto">
             <Link 
               to="/register" 
+              onClick={handleAuthClick}
               className="inline-flex items-center justify-center gap-2 bg-[#f97316] text-white px-6 py-3 rounded-xl font-bold hover:bg-[#ea580c] transition-colors shadow-sm text-sm"
             >
               Create student profile
             </Link>
             <Link 
               to="/login" 
+              onClick={handleAuthClick}
               className="inline-flex items-center justify-center gap-2 bg-transparent text-white border border-white/20 px-6 py-3 rounded-xl font-semibold hover:bg-white/10 transition-colors text-sm"
             >
               Sign in
@@ -166,10 +212,80 @@ function Landing() {
           <p>© 2026 UM-TAP. University of Mindanao Tagum College.</p>
           <div className="flex gap-4">
             <Link to="/events" className="hover:text-white transition-colors">Calendar</Link>
-            <Link to="/login" className="hover:text-white transition-colors">Student Portal</Link>
+            <Link to="/login" onClick={handleAuthClick} className="hover:text-white transition-colors">Student Portal</Link>
           </div>
         </footer>
       </section>
+
+      {/* ALREADY LOGGED IN WARNING MODAL */}
+      {showLoggedInModal && user && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="logged-in-title"
+          onClick={() => setShowLoggedInModal(false)}
+        >
+          <div
+            className="w-full max-w-sm bg-white rounded-3xl p-6 sm:p-7 shadow-2xl border border-slate-100 flex flex-col items-center text-center relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setShowLoggedInModal(false)}
+              aria-label="Close dialog"
+              className="absolute top-4 right-4 p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mb-4">
+              <AlertCircle size={28} />
+            </div>
+
+            <h3 id="logged-in-title" className="text-xl font-extrabold text-[#102a43] mb-2">
+              Already Signed In
+            </h3>
+
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mb-6">
+              You are currently authenticated as{" "}
+              <strong className="text-[#102a43]">{userName}</strong> (
+              <span className="capitalize font-semibold text-[#f97316]">{user.role}</span>).
+              You do not need to sign in again.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowLoggedInModal(false);
+                navigate(`/dashboard/${user.role}`);
+              }}
+              className="w-full flex items-center justify-center gap-2 bg-[#102a43] hover:bg-[#0a1c2e] text-white py-3 px-5 rounded-xl font-bold text-sm shadow-sm transition-all active:scale-[0.98]"
+            >
+              <span>Go to Your Dashboard</span>
+              <ArrowRight size={16} />
+            </button>
+
+            <div className="flex gap-2 w-full mt-2.5">
+              <button
+                type="button"
+                onClick={handleLogoutAndLogin}
+                className="flex-1 py-2.5 px-3 rounded-xl border border-rose-200 text-rose-700 hover:bg-rose-50 text-xs font-semibold transition-colors flex items-center justify-center gap-1.5"
+              >
+                <LogOut size={13} />
+                <span>Switch Account</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowLoggedInModal(false)}
+                className="flex-1 py-2.5 px-3 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 text-xs font-semibold transition-colors"
+              >
+                Stay Here
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </main>
   );
