@@ -8,6 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "db:init": "node server/init_db.js",
     "db:reset": "node server/reset_db.js"
   },
   "dependencies": {

@@ -24,8 +24,13 @@ const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173,http://
 
 app.use(cors({
     origin: (origin, callback) => {
-        // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
-        if (!origin || allowedOrigins.includes(origin)) {
+        // Allow requests with no origin (e.g. mobile apps, curl, server-to-server) or matching origins
+        if (
+            !origin ||
+            allowedOrigins.includes(origin) ||
+            allowedOrigins.includes('*') ||
+            origin.endsWith('.vercel.app')
+        ) {
             callback(null, true);
         } else {
             callback(null, false);
