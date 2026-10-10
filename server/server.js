@@ -41,6 +41,21 @@ app.use(cors({
 
 app.use(express.json());  // Allows your API routes to parse incoming JSON request payloads
 
+// Gracefully route requests whether called with /api prefix or directly without it
+app.use((req, res, next) => {
+    if (!req.url.startsWith('/api') && (
+        req.url.startsWith('/portal') ||
+        req.url.startsWith('/auth') ||
+        req.url.startsWith('/events') ||
+        req.url.startsWith('/attendance') ||
+        req.url.startsWith('/departments') ||
+        req.url.startsWith('/admin')
+    )) {
+        req.url = '/api' + req.url;
+    }
+    next();
+});
+
 // Catch malformed JSON request payloads gracefully without crashing the server process
 app.use((err, req, res, next) => {
     if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {

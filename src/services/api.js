@@ -1,4 +1,8 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
+let rawBase = import.meta.env.VITE_API_URL || "/api";
+if (rawBase.startsWith("http") && !rawBase.endsWith("/api")) {
+  rawBase = rawBase.replace(/\/+$/, "") + "/api";
+}
+const API_BASE_URL = rawBase;
 
 export async function apiRequest(path, options = {}) {
   const token = localStorage.getItem("token");
